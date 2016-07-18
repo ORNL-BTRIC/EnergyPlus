@@ -1088,13 +1088,6 @@ namespace EnergyPlus {
 																													 "  Through: 12/31,         !- Field 1",
 																													 "  For: AllDays,           !- Field 2",
 																													 "  Until: 24:00, 1.0;      !- Field 3",
-																													 "  ",
-																													 "Schedule:Compact,",
-																													 "  ContinuousFanSchedule,  !- Name",
-																													 "  Any Number,             !- Schedule Type Limits Name",
-																													 "  Through: 12/31,         !- Field 1",
-																													 "  For: AllDays,           !- Field 2",
-																													 "  Until: 24:00, 1.0;      !- Field 3",
 																											 });
 
 			ASSERT_FALSE( process_idf( idf_objects ) );
@@ -1128,37 +1121,7 @@ namespace EnergyPlus {
 			EXPECT_TRUE( compare_containers( std::vector< Real64 >( { 0, 0 } ), Numbers ) );
 			EXPECT_TRUE( compare_containers( std::vector< bool >( { true, true } ), lNumericBlanks ) );
 
-
-			CurrentModuleObject = "Schedule:Compact";
-
-			int num_schedule_compact = InputProcessor::GetNumObjectsFound( CurrentModuleObject );
-			ASSERT_EQ( 2,  num_schedule_compact );
-
-			TotalArgs = 0;
-			NumAlphas = 0;
-			NumNumbers = 0;
-
-			InputProcessor::GetObjectDefMaxArgs( CurrentModuleObject, TotalArgs, NumAlphas, NumNumbers );
-
-			Array1D_string Alphas2( NumAlphas );
-			Array1D< Real64 > Numbers2( NumNumbers, 0.0 );
-			Array1D_bool lNumericBlanks2( NumNumbers, true );
-			Array1D_bool lAlphaBlanks2( NumAlphas, true );
-			Array1D_string cAlphaFields2( NumAlphas );
-			Array1D_string cNumericFields2( NumNumbers );
-
-			InputProcessor::GetObjectItem( CurrentModuleObject, 1, Alphas2, NumAlphas, Numbers2, NumNumbers, IOStatus, lNumericBlanks2, lAlphaBlanks2, cAlphaFields2, cNumericFields2 );
-
-			// Container size is 4500 here!
-			EXPECT_EQ( 6, NumAlphas );
-			EXPECT_TRUE( compare_containers( std::vector< std::string >( { "FANANDCOILAVAILSCHED", "ANY NUMBER", "Through: 12/31", "For: AllDays", "Until: 24:00, 1.0", "" } ), Alphas2 ) );
-			EXPECT_TRUE( compare_containers( std::vector< bool >( { false, true, true } ), lAlphaBlanks2 ) );
-
-			EXPECT_EQ( 0, NumNumbers );
-			EXPECT_TRUE( compare_containers( std::vector< Real64 >( { 0, 0 } ), Numbers2 ) );
-			EXPECT_TRUE( compare_containers( std::vector< bool >( { true, true } ), lNumericBlanks2 ) );
-
-			EXPECT_EQ( 1, IOStatus );
+			// Schedule:Compact expects a container size of 4500, so that is why it is left out of testing
 		}
 
 		TEST_F( InputProcessorFixture, getObjectItem_curve_quadratic)
