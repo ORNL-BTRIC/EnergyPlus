@@ -1470,8 +1470,9 @@ namespace SimulationManager {
 		using PlantPipingSystemsManager::CheckIfAnyBasements;
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-		static bool Available( true ); // an environment is available to process
+		static bool Available( false ); // an environment is available to process
 
+        Available = true;
 		while ( Available ) { // do for each environment
 
 			GetNextEnvironment( Available, ErrorsFound );
@@ -1590,6 +1591,7 @@ namespace SimulationManager {
 		static gio::Fmt Format_706( "('! <NonConnected Node>,<NonConnected Node Number>,<NonConnected Node Name>')" );
 
 		NonConnectedNodes.dimension( NumOfNodes, true );
+        
 		NumNonParents = 0;
 
 		for ( Loop = 1; Loop <= NumOfNodeConnections; ++Loop ) {
