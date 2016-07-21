@@ -76,7 +76,7 @@
 #include <DataSystemVariables.hh>
 #include <EMSManager.hh>
 #include <General.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <OutputProcessor.hh>
 #include <UtilityRoutines.hh>
 

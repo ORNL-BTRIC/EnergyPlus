@@ -104,7 +104,7 @@
 #include <HVACUnitarySystem.hh>
 #include <HVACVariableRefrigerantFlow.hh>
 #include <HWBaseboardRadiator.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <InternalHeatGains.hh>
 #include <LowTempRadiantSystem.hh>
 #include <OutdoorAirUnit.hh>

@@ -93,7 +93,7 @@
 #include <HeatingCoils.hh>
 #include <HVACDXSystem.hh>
 #include <HVACHXAssistedCoolingCoil.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <NodeInputManager.hh>
 #include <OutputProcessor.hh>
 #include <PlantUtilities.hh>

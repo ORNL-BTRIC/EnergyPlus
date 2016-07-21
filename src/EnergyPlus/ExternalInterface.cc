@@ -81,7 +81,7 @@ extern "C" {
 #include <DataSystemVariables.hh>
 #include <EMSManager.hh>
 #include <General.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <OutputProcessor.hh>
 #include <RuntimeLanguageProcessor.hh>
 #include <ScheduleManager.hh>

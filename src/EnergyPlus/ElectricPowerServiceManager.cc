@@ -71,7 +71,7 @@
 #include <DataHVACGlobals.hh>
 #include <DataPrecisionGlobals.hh>
 #include <UtilityRoutines.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <DataIPShortCuts.hh>
 #include <ScheduleManager.hh>
 #include <CurveManager.hh>

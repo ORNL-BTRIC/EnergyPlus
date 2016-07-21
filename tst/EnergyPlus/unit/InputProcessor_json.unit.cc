@@ -5,14 +5,14 @@
 
 // EnergyPlus Headers
 #include <EnergyPlus/DataOutputs.hh>
-#include <EnergyPlus/InputProcessor_json.hh>
+#include <EnergyPlus/InputProcessor.hh>
 #include <EnergyPlus/SortAndStringUtilities.hh>
 
 #include "Fixtures/InputProcessorFixture.hh"
 
 #include <tuple>
 #include <map>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 
 namespace EnergyPlus {
 

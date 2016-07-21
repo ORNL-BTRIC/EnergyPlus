@@ -111,7 +111,7 @@
 #include <HeatBalFiniteDiffManager.hh>
 #include <HighTempRadiantSystem.hh>
 #include <HWBaseboardRadiator.hh>
-#include <InputProcessor_json.hh>
+#include <InputProcessor.hh>
 #include <InternalHeatGains.hh>
 #include <LowTempRadiantSystem.hh>
 #include <MoistureBalanceEMPDManager.hh>
