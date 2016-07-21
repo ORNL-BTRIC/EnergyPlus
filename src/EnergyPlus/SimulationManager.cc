@@ -199,12 +199,6 @@ namespace SimulationManager {
 	static gio::Fmt fmtLD( "*" );
 	static gio::Fmt fmtA( "(A)" );
 
-	// DERIVED TYPE DEFINITIONS:
-	// na
-
-	// INTERFACE BLOCK SPECIFICATIONS:
-	// na
-
 	// MODULE VARIABLE DECLARATIONS:
 	bool RunPeriodsInInput( false );
 	bool RunControlInInput( false );
@@ -222,7 +216,6 @@ namespace SimulationManager {
 
 	// MODULE SUBROUTINES:
 
-	// Functions
 	void
 	clear_state()
 	{
@@ -248,13 +241,6 @@ namespace SimulationManager {
 		// simulation.  This includes the environment loop, a day loop, an
 		// hour loop, and a time step loop.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
 		using DataHVACGlobals::TimeStepSys;
 		using DataEnvironment::EnvironmentName;
 		using DataEnvironment::CurMnDy;
@@ -263,8 +249,6 @@ namespace SimulationManager {
 		using DataEnvironment::TotDesDays;
 		using DataEnvironment::TotRunDesPersDays;
 		using DataEnvironment::EndMonthFlag;
-
-
 		using SizingManager::ManageSizing;
 		using ExteriorEnergyUse::ManageExteriorEnergyUse;
 		using OutputReportTabular::WriteTabularReports;
@@ -312,33 +296,17 @@ namespace SimulationManager {
 		using OutputProcessor::ResetAccumulationWhenWarmupComplete;
 		using OutputProcessor::isFinalYear;
 
-		// Locals
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
-
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		static bool Available; // an environment is available to process
 		static bool ErrorsFound( false );
 		static bool TerminalError( false );
 		bool SimsDone;
 		bool ErrFound;
-		//  REAL(r64) :: t0,t1,st0,st1
-
-		//  CHARACTER(len=70) :: tdstring
-		//  CHARACTER(len=138) :: tdstringlong
-
 		int EnvCount;
 
 		// Formats
 		static gio::Fmt Format_700( "('Environment:WarmupDays,',I3)" );
 
-		//CreateSQLiteDatabase();
 		sqlite = EnergyPlus::CreateSQLiteDatabase();
 
 		if ( sqlite ) {
@@ -537,7 +505,6 @@ namespace SimulationManager {
 				BeginDayFlag = true;
 				EndDayFlag = false;
 
-
 				if ( WarmupFlag ) {
 					++NumOfWarmupDays;
 					cWarmupDay = TrimSigDigits( NumOfWarmupDays );
@@ -661,7 +628,6 @@ namespace SimulationManager {
 #endif
 		CloseOutputFiles();
 
-		// sqlite->createZoneExtendedOutput();
 		CreateSQLiteZoneExtendedOutput();
 
 		if ( sqlite ) {
@@ -673,7 +639,6 @@ namespace SimulationManager {
 		if ( ErrorsFound ) {
 			ShowFatalError( "Error condition occurred.  Previous Severe Errors cause termination." );
 		}
-
 	}
 
 	void
@@ -692,11 +657,7 @@ namespace SimulationManager {
 		// METHODOLOGY EMPLOYED:
 		// Use GetObjectItem from the Input Processor
 
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-				using DataStringGlobals::MatchVersion;
+		using DataStringGlobals::MatchVersion;
 		using namespace DataConvergParams;
 		using namespace DataSystemVariables;
 		using DataHVACGlobals::LimitNumSysSteps;
@@ -709,18 +670,8 @@ namespace SimulationManager {
 		using DataEnvironment::IgnoreDiffuseRadiation;
 		using namespace DataIPShortCuts;
 
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
 		// SUBROUTINE PARAMETER DEFINITIONS:
 		static Array1D_int const Div60( 12, { 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60 } );
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		Array1D_string Alphas( 6 );
@@ -1136,24 +1087,6 @@ namespace SimulationManager {
 		// For now (8/2008), the routine will query several objects in the input.  And try to produce warnings or
 		// fatals as a result.
 
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
-
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int NumZoneSizing;
 		int NumSystemSizing;
@@ -1252,32 +1185,10 @@ namespace SimulationManager {
 		// results should be produced (either sizing periods or weather files are run) but no reports are
 		// requested.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
-
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		bool SimPeriods;
 		bool ReportingRequested;
 
-		ReportingRequested = false;
 		SimPeriods = ( InputProcessor::GetNumObjectsFound( "SizingPeriod:DesignDay" ) > 0 || InputProcessor::GetNumObjectsFound( "SizingPeriod:WeatherFileDays" ) > 0 || InputProcessor::GetNumObjectsFound( "SizingPeriod:WeatherFileConditionType" ) > 0 || InputProcessor::GetNumObjectsFound( "RunPeriod" ) > 0 );
 
 		if ( ( DoDesDaySim || DoWeathSim ) && SimPeriods ) {
@@ -1305,27 +1216,8 @@ namespace SimulationManager {
 		// This subroutine opens all of the input and output files needed for
 		// an EnergyPlus run.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
 		// Using/Aliasing
 		using DataStringGlobals::VerString;
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int write_stat;
@@ -1383,13 +1275,6 @@ namespace SimulationManager {
 		// an EnergyPlus run.  It also prints the end of data marker for each
 		// output file.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
 		using namespace DataOutputs;
 		using OutputProcessor::MaxRVariable;
 		using OutputProcessor::NumOfRVariable_Setup;
@@ -1422,19 +1307,9 @@ namespace SimulationManager {
 		using DataSurfaces::MaxVerticesPerSurface;
 		using namespace DataTimings;
 
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
 		// SUBROUTINE PARAMETER DEFINITIONS:
 		static gio::Fmt EndOfDataFormat( "(\"End of Data\")" ); // Signifies the end of the data block in the output file
 		static std::string const ThreadingHeader( "! <Program Control Information:Threads/Parallel Sims>, Threading Supported,Maximum Number of Threads, Env Set Threads (OMP_NUM_THREADS), EP Env Set Threads (EP_OMP_NUM_THREADS), IDF Set Threads, Number of Threads Used (Interior Radiant Exchange), Number Nominal Surfaces, Number Parallel Sims" );
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int EchoInputFile; // found unit number for 'eplusout.audit'
@@ -1443,6 +1318,7 @@ namespace SimulationManager {
 		std::string cIDFSetThreads;
 
 		EchoInputFile = FindUnitNumber( DataStringGlobals::outputAuditFileName );
+
 		// Record some items on the audit file
 		gio::write( EchoInputFile, fmtLD ) << "NumOfRVariable=" << NumOfRVariable_Setup;
 		gio::write( EchoInputFile, fmtLD ) << "NumOfRVariable(Total)=" << NumTotalRVariable;
@@ -1582,10 +1458,6 @@ namespace SimulationManager {
 		// Using global flag (kickoff simulation), only a few time steps are executed.
 		// global flag is used in other parts of simulation to terminate quickly.
 
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
 		using ExteriorEnergyUse::ManageExteriorEnergyUse;
 		using DataEnvironment::EndMonthFlag;
 		using DataEnvironment::EnvironmentName;
@@ -1597,26 +1469,8 @@ namespace SimulationManager {
 		using PlantPipingSystemsManager::CheckIfAnySlabs;
 		using PlantPipingSystemsManager::CheckIfAnyBasements;
 
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
-
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-		static bool Available( false ); // an environment is available to process
-		//  integer :: env_iteration=0
-		//  CHARACTER(len=32) :: cEnvChar
-
-		//  return  ! remove comment to do 'old way'
-
-		Available = true;
+		static bool Available( true ); // an environment is available to process
 
 		while ( Available ) { // do for each environment
 
@@ -1665,7 +1519,7 @@ namespace SimulationManager {
 			BeginSimFlag = false;
 			BeginFullSimFlag = false;
 
-			//          ! do another timestep=1
+			//          ! do another timestep = 1
 			if ( DeveloperFlag ) DisplayString( "Initializing Simulation - 2nd timestep 1:" + EnvironmentName );
 
 			ManageWeather();
@@ -1693,7 +1547,9 @@ namespace SimulationManager {
 			SimulateGroundDomains( true );
 		}
 
-		if ( ! ErrorsFound ) SimCostEstimate(); // basically will get and check input
+		// get and check input
+		if ( ! ErrorsFound ) SimCostEstimate();
+
 		if ( ErrorsFound ) ShowFatalError( "Previous Conditions cause program termination." );
 
 	}
@@ -1712,32 +1568,10 @@ namespace SimulationManager {
 		// This subroutine 'reports' the NodeConnection data structure.  It groups the
 		// report/dump by parent, non-parent objects.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-
-
 		using namespace DataBranchNodeConnections;
 		using DataGlobals::OutputFileBNDetails;
 		using DataLoopNode::NumOfNodes;
 		using DataLoopNode::NodeID;
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS
-		// na
-
-		// DERIVED TYPE DEFINITIONS
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int Loop;
@@ -1756,9 +1590,8 @@ namespace SimulationManager {
 		static gio::Fmt Format_706( "('! <NonConnected Node>,<NonConnected Node Number>,<NonConnected Node Name>')" );
 
 		NonConnectedNodes.dimension( NumOfNodes, true );
-
-		NumParents = 0;
 		NumNonParents = 0;
+
 		for ( Loop = 1; Loop <= NumOfNodeConnections; ++Loop ) {
 			if ( NodeConnections( Loop ).ObjectIsParent ) continue;
 			++NumNonParents;
@@ -1779,7 +1612,8 @@ namespace SimulationManager {
 			gio::write( ChrOut, fmtLD ) << NodeConnections( Loop ).FluidStream;
 			strip( ChrOut );
 			gio::write( OutputFileBNDetails, Format_701 ) << " Parent Node Connection," + NodeConnections( Loop ).NodeName + ',' + NodeConnections( Loop ).ObjectType + ',' + NodeConnections( Loop ).ObjectName + ',' + NodeConnections( Loop ).ConnectionType + ',' + ChrOut;
-			// Build ParentNodeLists
+
+            // Build ParentNodeLists
 			if ( InputProcessor::SameString( NodeConnections( Loop ).ConnectionType, "Inlet" ) || InputProcessor::SameString( NodeConnections( Loop ).ConnectionType, "Outlet" ) ) {
 				ParentComponentFound = false;
 				for ( Loop1 = 1; Loop1 <= NumOfActualParents; ++Loop1 ) {
@@ -1838,7 +1672,6 @@ namespace SimulationManager {
 				gio::write( OutputFileBNDetails, Format_701 ) << " NonConnected Node," + ChrOut + ',' + NodeID( Loop );
 			}
 		}
-
 		NonConnectedNodes.deallocate();
 
 	}
@@ -1859,14 +1692,6 @@ namespace SimulationManager {
 		// return air paths, controlled zones.
 		// This information should be useful in diagnosing node connection input errors.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-
 		using namespace DataAirLoop;
 		using namespace DataBranchNodeConnections;
 		using DataLoopNode::NumOfNodes;
@@ -1881,18 +1706,8 @@ namespace SimulationManager {
 		using DualDuct::ReportDualDuctConnections;
 		using DataGlobals::OutputFileBNDetails;
 
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
 		// SUBROUTINE PARAMETER DEFINITIONS:
 		static std::string const errstring( "**error**" );
-
-		// INTERFACE BLOCK SPECIFICATIONS
-		// na
-
-		// DERIVED TYPE DEFINITIONS
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		std::string ChrOut;
@@ -2004,7 +1819,7 @@ namespace SimulationManager {
 		gio::write( OutputFileBNDetails, Format_713 ) << "! <Plant Loop Return Connection>,<Plant Loop Name>,<Demand Side Outlet Node Name>,<Supply Side Inlet Node Name>";
 		for ( Count = 1; Count <= NumPlantLoops; ++Count ) {
 			for ( LoopSideNum = DemandSide; LoopSideNum <= SupplySide; ++LoopSideNum ) {
-				//  Plant Supply Side Loop
+				// Plant Supply Side Loop
 				// Demandside and supplyside is parametrized in DataPlant
 				if ( LoopSideNum == DemandSide ) {
 					LoopString = "Demand";
@@ -2264,29 +2079,10 @@ namespace SimulationManager {
 		// METHODOLOGY EMPLOYED:
 		// Uses IsParentObject,GetNumChildren,GetChildrenData
 
-		// REFERENCES:
-		// na
-
-		// USE STATEMENTS:
-		// na
-		// Using/Aliasing
 		using DataGlobals::OutputFileDebug;
 		using General::TrimSigDigits;
 		using namespace DataBranchNodeConnections;
 		using namespace BranchNodeConnections;
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int Loop;
@@ -2350,29 +2146,11 @@ namespace SimulationManager {
 		// PURPOSE OF THIS SUBROUTINE:
 		// Reports comp set meter variables.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
 		// Using/Aliasing
 		using DataGlobals::OutputFileDebug;
 		using namespace DataBranchNodeConnections;
 		using namespace BranchNodeConnections;
 		using namespace DataGlobalConstants;
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-		// na
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int Loop;
@@ -2432,8 +2210,6 @@ namespace SimulationManager {
 		// This provides post processing (for errors, etc) directly after the InputProcessor
 		// finishes.  Code originally in the Input Processor.
 
-		// Using/Aliasing
-		//using SQLiteProcedures::CreateSQLiteDatabase;
 		using FluidProperties::FluidIndex_Water;
 		using FluidProperties::FluidIndex_EthyleneGlycol;
 		using FluidProperties::FluidIndex_PropoleneGlycol;
@@ -2446,27 +2222,11 @@ namespace SimulationManager {
 
 		DoingInputProcessing = false;
 
-		// PreProcessorCheck( PreP_Fatal ); // Check Preprocessor objects for warning, severe, etc errors.
-
 		CheckCachedIPErrors();
 
 		if ( PreP_Fatal ) {
 			ShowFatalError( "Preprocessor condition(s) cause termination." );
 		}
-
-		// if ( OverallErrorFlag ) {
-			// ShowFatalError( "IP: Errors occurred on processing IDF file. Preceding condition(s) cause termination." );
-		// }
-
-		// CompactObjectsCheck(); // Check to see if Compact Objects (CompactHVAC, etc) are in input file.
-		// If so, ExpandObjects didn't get called...
-		// ParametricObjectsCheck(); // check to see if any parametric objects are in the input file
-		// parametric preprocessor was not run
-
-		// if ( NumOutOfRangeErrorsFound + NumBlankReqFieldFound + NumMiscErrorsFound > 0 ) {
-			// ShowSevereError( "IP: Out of \"range\" values and/or blank required fields found in input" );
-			// ShowFatalError( "IP: Errors occurred on processing IDF file. Preceding condition(s) cause termination." );
-		// }
 
 		if ( InputProcessor::GetNumSectionsFound( "DISPLAYALLWARNINGS" ) > 0 ) {
 			DisplayAllWarnings = true;
@@ -2518,26 +2278,6 @@ namespace SimulationManager {
 		// This routine displays the cached error messages after the preprocessor
 		// errors have been checked and produced.
 
-		// METHODOLOGY EMPLOYED:
-		// na
-
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
-
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		int iostatus;
 		std::string ErrorMessage;
@@ -2550,6 +2290,7 @@ namespace SimulationManager {
 			if ( iostatus != 0 ) break;
 			if ( is_blank( ErrorMessage ) ) continue;
 			ShowErrorMessage( ErrorMessage );
+            
 			if ( sqlite ) {
 				// Following code relies on specific formatting of Severes, Warnings, and continues
 				// that occur in the IP processing.  Later ones -- i.e. Fatals occur after the
@@ -2587,10 +2328,6 @@ namespace SimulationManager {
 		// Check if IDF input (ProgramControl) = iIDFSetThreads
 		// Check # active sims (cntActv) = inumActiveSims [report only?]
 
-		// REFERENCES:
-		// na
-
-		// Using/Aliasing
 		using namespace DataSystemVariables;
 
 
@@ -2601,18 +2338,6 @@ namespace SimulationManager {
 		using omp_lib::omp_get_num_threads;
 		using omp_lib::omp_set_num_threads;
 #endif
-
-		// Locals
-		// SUBROUTINE ARGUMENT DEFINITIONS:
-		// na
-
-		// SUBROUTINE PARAMETER DEFINITIONS:
-
-		// INTERFACE BLOCK SPECIFICATIONS:
-		// na
-
-		// DERIVED TYPE DEFINITIONS:
-		// na
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 		std::string cEnvValue;
@@ -2802,7 +2527,6 @@ Resimulate(
 	//         RecKeepHeatBalance
 	//         ReportHeatBalance
 
-	// Using/Aliasing
 	using namespace DataPrecisionGlobals;
 	using DemandManager::DemandManagerExtIterations;
 	using DemandManager::DemandManagerHBIterations;
@@ -2815,17 +2539,12 @@ Resimulate(
 	using DataHeatBalFanSys::iGetZoneSetPoints;
 	using DataHeatBalFanSys::iPredictStep;
 	using HVACManager::SimHVAC;
-	//using HVACManager::CalcAirFlowSimple;
 	using DataHVACGlobals::UseZoneTimeStepHistory; // , InitDSwithZoneHistory
 	using ZoneContaminantPredictorCorrector::ManageZoneContaminanUpdates;
 	using DataContaminantBalance::Contaminant;
 
 	using DataHeatBalance::ZoneAirMassFlow;
 	using namespace ZoneEquipmentManager;
-	//using ZoneEquipmentManager::CalcAirFlowSimple;
-
-	// Locals
-	// SUBROUTINE ARGUMENT DEFINITIONS:
 
 	// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 	Real64 ZoneTempChange( 0.0 ); // Dummy variable needed for calling ManageZoneAirUpdates
