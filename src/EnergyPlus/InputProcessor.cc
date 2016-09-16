@@ -27,9 +27,9 @@ json EnergyPlus::InputProcessor::jdf = json();
 json EnergyPlus::InputProcessor::schema = json();
 IdfParser EnergyPlus::InputProcessor::idf_parser = IdfParser();
 State EnergyPlus::InputProcessor::state = State();
-std::unordered_map < std::string, std::vector< std::pair < json::iterator, json::iterator > > >
+std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> *> >
 		EnergyPlus::InputProcessor::jdd_and_jdf_locations =
-		std::unordered_map < std::string, std::pair < json::iterator, std::vector < json::iterator > > > ();
+		std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> *> > ();
 char EnergyPlus::InputProcessor::s[] = { 0 };
 std::ostream * EnergyPlus::InputProcessor::echo_stream = nullptr;
 
@@ -952,18 +952,26 @@ namespace EnergyPlus {
 
 		// TODO TODO TODO TODO TODO INCOMPLETE
 		auto const & schema_properties = schema[ "properties" ];
-		for (json::iterator const & schema_iter : schema_properties ) {
-			auto const & jdf_obj_iter = jdf.find( schema_iter.key() );
-			if ( jdf_obj_iter == jdf.end() ) {
-				std::vector < json::iterator > (nullptr);
-				jdd_and_jdf_locations[ schema_iter.key() ] = std::make_pair(schema_iter, std::vector < json::iterator > (nullptr) );
+
+
+
+		for (auto schema_iter = schema_properties.begin(); schema_iter != schema_properties.end(); schema_iter++) {
+            std::string test = schema_iter.key();
+			auto const & jdf_find_obj_iter = jdf.find( schema_iter.key() );
+			if ( jdf_find_obj_iter == jdf.end() ) {
+//				std::vector < json::iterator > blah (1, nullptr);
+//				jdd_and_jdf_locations[ schema_iter.key() ] = std::make_pair(schema_iter, std::vector < json::iterator > { nullptr } );
+				// ^^ if this key is not in the JDF, then maybe we shouldn't include it in the cache for better lookup performance
 				continue;
 			}
 
-//			std::vector < json::iterator > jdf_obj_iterators;
-//			for (auto const & jdf_obj : jdf_obj_iter.value()) {
-//                jdf_obj_iterators.emplace_back(jdf_obj);
-//			}
+            auto const & objects = jdf_find_obj_iter.value();
+			auto * jdf_obj_iterators_vec = new std::vector < json::const_iterator > ( objects.size() );
+			for (auto jdf_obj_iter = objects.begin(); jdf_obj_iter != objects.end(); jdf_obj_iter++) {
+                jdf_obj_iterators_vec->push_back(jdf_obj_iter);
+			}
+            auto pair = std::make_pair( schema_iter, jdf_obj_iterators_vec );
+			jdd_and_jdf_locations[ schema_iter.key() ] = pair;
 		}
 
 		int MaxArgs = 0;

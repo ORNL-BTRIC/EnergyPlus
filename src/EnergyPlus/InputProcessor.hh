@@ -179,7 +179,7 @@ namespace EnergyPlus {
 		static json jdf;
 		static std::ostream * echo_stream;
 		static std::unordered_map < std::string,
-				std::pair < json::iterator, std::vector < json::iterator > > > jdd_and_jdf_locations;
+				std::pair <json::const_iterator, std::vector <json::const_iterator> * > > jdd_and_jdf_locations;
 
 		template < class T >
 		struct is_shared_ptr : std::false_type {};
