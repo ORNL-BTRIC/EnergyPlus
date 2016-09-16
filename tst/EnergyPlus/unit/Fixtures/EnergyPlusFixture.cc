@@ -578,9 +578,34 @@ namespace EnergyPlus {
 					}
 			};
 		}
+
+		// TODO THIS IS HORRIBLE PROB SHOULDN"T DO THIS
+		auto const & schema_properties = InputProcessor::schema[ "properties" ];
+		for (auto schema_iter = schema_properties.begin(); schema_iter != schema_properties.end(); schema_iter++) {
+			std::string test = schema_iter.key();
+			auto const & jdf_find_obj_iter = InputProcessor::jdf.find( schema_iter.key() );
+			if ( jdf_find_obj_iter == InputProcessor::jdf.end() ) {
+//				std::vector < json::iterator > blah (1, nullptr);
+//				jdd_and_jdf_locations[ schema_iter.key() ] = std::make_pair(schema_iter, std::vector < json::iterator > { nullptr } );
+				// ^^ if this key is not in the JDF, then maybe we shouldn't include it in the cache for better lookup performance
+				continue;
+			}
+
+			auto const & objects = jdf_find_obj_iter.value();
+			auto * jdf_obj_iterators_vec = new std::vector < json::const_iterator > ( );
+			for (auto jdf_obj_iter = objects.begin(); jdf_obj_iter != objects.end(); jdf_obj_iter++) {
+				jdf_obj_iterators_vec->emplace_back(jdf_obj_iter);
+			}
+			auto pair = std::make_pair( schema_iter, jdf_obj_iterators_vec );
+			InputProcessor::jdd_and_jdf_locations[ schema_iter.key() ] = pair;
+			jdf_obj_iterators_vec = nullptr;
+		}
+
 		InputProcessor::InitFiles();
 		SimulationManager::PostIPProcessing();
 		InputProcessor::state.print_errors();
+
+
 
 		int MaxArgs = 0;
 		int MaxAlpha = 0;

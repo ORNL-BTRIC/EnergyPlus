@@ -852,6 +852,11 @@ namespace EnergyPlus {
 		state.errors.clear();
 		state.warnings.clear();
 		jdf.clear();
+		for (auto const & outer : jdd_and_jdf_locations) {
+			auto const & pair = outer.second;
+            delete pair.second;
+		}
+		jdd_and_jdf_locations.clear();
 		EchoInputFile = 0;
 		echo_stream = nullptr;
 	}
@@ -966,9 +971,9 @@ namespace EnergyPlus {
 			}
 
             auto const & objects = jdf_find_obj_iter.value();
-			auto * jdf_obj_iterators_vec = new std::vector < json::const_iterator > ( objects.size() );
+			auto * jdf_obj_iterators_vec = new std::vector < json::const_iterator > ( );
 			for (auto jdf_obj_iter = objects.begin(); jdf_obj_iter != objects.end(); jdf_obj_iter++) {
-                jdf_obj_iterators_vec->push_back(jdf_obj_iter);
+                jdf_obj_iterators_vec->emplace_back(jdf_obj_iter);
 			}
             auto pair = std::make_pair( schema_iter, jdf_obj_iterators_vec );
 			jdd_and_jdf_locations[ schema_iter.key() ] = pair;
@@ -1067,6 +1072,7 @@ namespace EnergyPlus {
 		// This subroutine gets the 'number' 'object' from the IDFRecord data structure.
 
 		json * object_in_jdf;
+		std::string really_bad_copy_bc_im_tired;
 		if ( jdf.find( Object ) == jdf.end() ) {
 			auto tmp_umit = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase( Object ) );
 			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end()
@@ -1074,8 +1080,10 @@ namespace EnergyPlus {
 				return;
 			}
 			object_in_jdf = &jdf[ tmp_umit->second ];
+            really_bad_copy_bc_im_tired = tmp_umit->second;
 		} else {
 			object_in_jdf = &jdf[ Object ];
+			really_bad_copy_bc_im_tired = Object;
 		}
 
 		json * object_in_schema = &schema[ "properties" ];
@@ -1086,6 +1094,7 @@ namespace EnergyPlus {
 				return;
 			}
 			object_in_schema = & (*object_in_schema)[ tmp_umit->second ];
+			really_bad_copy_bc_im_tired = tmp_umit->second;
 		} else {
 			object_in_schema = & (*object_in_schema)[ Object ];
 		}
@@ -1113,7 +1122,19 @@ namespace EnergyPlus {
 		Numbers = 0;
 
 
-		auto const & obj = object_in_jdf->begin() + Number - 1;
+		auto const & blah = jdd_and_jdf_locations.find(really_bad_copy_bc_im_tired);
+        if ( blah == jdd_and_jdf_locations.end() ) {
+			// This should never happen but it will with this messy code, not anymore bc I added
+			// std::string really_bad_copy_bc_im_tired
+			return;
+		}
+        auto const & schema_str_key = blah->first;
+		auto const & pair = blah->second;
+		auto const vec = pair.second;
+
+		auto const & obj = (*vec)[ Number - 1 ];
+
+//		auto const & obj = object_in_jdf->begin() + Number - 1;
 		auto const & obj_val = obj.value();
 		auto const & legacy_idd_alphas_fields = legacy_idd_alphas[ "fields" ];
 		for ( int i = 0; i < legacy_idd_alphas_fields.size(); ++i ) {
