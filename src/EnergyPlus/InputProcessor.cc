@@ -1044,7 +1044,7 @@ namespace EnergyPlus {
 	EnergyPlus::InputProcessor::GetObjectItem(
 		std::string const & Object,
 		int const Number,
-		Array1S_string Alphas,
+		Array1S_string  Alphas,
 		int & NumAlphas,
 		Array1S < Real64 > Numbers,
 		int & NumNumbers,
@@ -1064,19 +1064,30 @@ namespace EnergyPlus {
 		// This subroutine gets the 'number' 'object' from the IDFRecord data structure.
 
 		json * object_in_jdf;
-		if ( jdf.find( Object ) == jdf.end() ) {
+
+        // I tried to reduce json map loop up here, since jdf["string"] notation acts like jdf.find("string")
+
+        auto jdfObjIter = jdf.find( Object );
+		//if ( jdf.find( Object ) == jdf.end() ) {
+        if ( jdfObjIter == jdf.end() ) {
 			auto tmp_umit = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase( Object ) );
-			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end()
-			     || jdf.find( tmp_umit->second ) == jdf.end() ) {
+
+            auto umitIter = jdf.find( tmp_umit->second );
+			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end() ||
+                   /* jdf.find( tmp_umit->second ) == jdf.end() ) { */
+                umitIter  == jdf.end() ) {
 				return;
 			}
-			object_in_jdf = &jdf[ tmp_umit->second ];
+			// object_in_jdf = &jdf[ tmp_umit->second ];
+            object_in_jdf  = & (* umitIter );
 		} else {
-			object_in_jdf = &jdf[ Object ];
+			//object_in_jdf = &jdf[ Object ];
+            object_in_jdf = & ( *jdfObjIter );
 		}
 
 		json * object_in_schema = &schema[ "properties" ];
-		if ( object_in_schema->find( Object ) == object_in_schema->end() ) {
+        auto schemaObjIter = object_in_schema->find( Object );
+        if ( /*object_in_schema->find( Object )*/ schemaObjIter == object_in_schema->end() ) {
 			auto tmp_umit = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase( Object ) );
 			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end() ) {
 				ShowWarningError( "Did not find object " + Object + " in schema" );
@@ -1084,7 +1095,8 @@ namespace EnergyPlus {
 			}
 			object_in_schema = & (*object_in_schema)[ tmp_umit->second ];
 		} else {
-			object_in_schema = & (*object_in_schema)[ Object ];
+			//object_in_schema = & (*object_in_schema)[ Object ];
+            object_in_schema = & ( *schemaObjIter );
 		}
 
 		NumAlphas = 0;
@@ -1110,12 +1122,12 @@ namespace EnergyPlus {
 		Numbers = 0;
 
 		auto const & obj = object_in_jdf->begin() + Number - 1;
-		auto const & obj_val = obj.value();
+		//auto const & obj_val = obj.value();
 		auto const & legacy_idd_alphas_fields = legacy_idd_alphas[ "fields" ];
 		for ( int i = 0; i < legacy_idd_alphas_fields.size(); ++i ) {
-			std::string const field = legacy_idd_alphas_fields[ i ];
+			std::string const & field = legacy_idd_alphas_fields[ i ];
 			if ( field == "name" ) {
-				auto const name_iter = object_in_schema->at("name");
+				auto const & name_iter = object_in_schema->at("name");
                 if ( name_iter.find( "retaincase" ) != name_iter.end() ) {
 					Alphas( i + 1 ) = obj.key();
 				} else {
@@ -1126,14 +1138,19 @@ namespace EnergyPlus {
 				NumAlphas++;
 				continue;
 			}
-			auto it = obj_val.find( field );
-			if ( it != obj_val.end() ) {
-				std::string val;
+			auto it = obj.value().find( field );
+			if ( it != obj.value().end() ) {
 				if ( it.value().is_string() ) {
+					std::string val;
 					auto const & schema_field_obj = schema_obj_props[ field ];
+
+                    auto schemaIter = schema_field_obj.find( "default" );
 					if ( it.value().get < std::string >().empty() &&
-					     schema_field_obj.find( "default" ) != schema_field_obj.end() ) {
-						auto const & default_val = schema_field_obj[ "default" ];
+					     //schema_field_obj.find( "default" ) != schema_field_obj.end() ) {
+                         schemaIter != schema_field_obj.end() ) {
+						//auto const & default_val = schema_field_obj[ "default" ];
+                        auto const & default_val = *schemaIter;
+
 						if ( default_val.is_string() ) {
 							val = default_val.get < std::string >();
 						} else {
@@ -1178,7 +1195,7 @@ namespace EnergyPlus {
 				auto const & jdf_extension_obj = it.value();
 
 				for ( auto i = 0; i < legacy_idd_alphas_extensions.size(); i++ ) {
-					std::string const field_name = legacy_idd_alphas_extensions[ i ];
+					std::string const & field_name = legacy_idd_alphas_extensions[ i ];
 					auto const & jdf_obj_field_iter = jdf_extension_obj.find( field_name );
 
 					if ( jdf_obj_field_iter != jdf_extension_obj.end() ) {
@@ -1230,7 +1247,7 @@ namespace EnergyPlus {
 
 		auto const & legacy_idd_numerics_fields = legacy_idd_numerics[ "fields" ];
 		for ( int i = 0; i < legacy_idd_numerics_fields.size(); ++i ) {
-			std::string const field = legacy_idd_numerics_fields[ i ];
+			std::string const & field = legacy_idd_numerics_fields[ i ];
 			auto it = obj.value().find( field );
 			if ( it != obj.value().end() ) {
 				if ( !it.value().is_string() ) {
@@ -1272,7 +1289,7 @@ namespace EnergyPlus {
 				auto const & jdf_extension_obj = it.value();
 
 				for ( auto i = 0; i < legacy_idd_numerics_extensions.size(); i++ ) {
-					std::string const field = legacy_idd_numerics_extensions[ i ];
+					std::string const & field = legacy_idd_numerics_extensions[ i ];
                     auto const & jdf_extension_field_iter = jdf_extension_obj.find( field );
 
 					if ( jdf_extension_field_iter != jdf_extension_obj.end() ) {
@@ -1683,27 +1700,26 @@ namespace EnergyPlus {
 		// name already and that this name is not blank).
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-		int Found;
+		// int Found;
 
-		ErrorFound = false;
-		if ( NumOfNames > 0 ) {
-			Found = FindItem( NameToVerify, NamesList, NumOfNames );
-			if ( Found != 0 ) {
-				ShowSevereError( StringToDisplay + ", duplicate name=" + NameToVerify );
-				ErrorFound = true;
-			}
-		}
+		// ErrorFound = false;
+		// if ( NumOfNames > 0 ) {
+		// 	Found = FindItem( NameToVerify, NamesList, NumOfNames );
+		// 	if ( Found != 0 ) {
+		// 		ShowSevereError( StringToDisplay + ", duplicate name=" + NameToVerify );
+		// 		ErrorFound = true;
+		// 	}
+		// }
 
-		if ( NameToVerify.empty() ) {
-			ShowSevereError( StringToDisplay + ", cannot be blank" );
-			ErrorFound = true;
-			IsBlank = true;
-		} else {
-			IsBlank = false;
-		}
+		// if ( NameToVerify.empty() ) {
+		// 	ShowSevereError( StringToDisplay + ", cannot be blank" );
+		// 	ErrorFound = true;
+		// 	IsBlank = true;
+		// } else {
+		// 	IsBlank = false;
+		// }
 
 	}
-
 	void
 	EnergyPlus::InputProcessor::VerifyName(
 		std::string const & NameToVerify,
@@ -1726,24 +1742,24 @@ namespace EnergyPlus {
 		// name already and that this name is not blank).
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
-		int Found;
+		// int Found;
 
-		ErrorFound = false;
-		if ( NumOfNames > 0 ) {
-			Found = FindItem( NameToVerify, NamesList, NumOfNames );
-			if ( Found != 0 ) {
-				ShowSevereError( StringToDisplay + ", duplicate name=" + NameToVerify );
-				ErrorFound = true;
-			}
-		}
+		// ErrorFound = false;
+		// if ( NumOfNames > 0 ) {
+		// 	Found = FindItem( NameToVerify, NamesList, NumOfNames );
+		// 	if ( Found != 0 ) {
+		// 		ShowSevereError( StringToDisplay + ", duplicate name=" + NameToVerify );
+		// 		ErrorFound = true;
+		// 	}
+		// }
 
-		if ( NameToVerify.empty() ) {
-			ShowSevereError( StringToDisplay + ", cannot be blank" );
-			ErrorFound = true;
-			IsBlank = true;
-		} else {
-			IsBlank = false;
-		}
+		// if ( NameToVerify.empty() ) {
+		// 	ShowSevereError( StringToDisplay + ", cannot be blank" );
+		// 	ErrorFound = true;
+		// 	IsBlank = true;
+		// } else {
+		// 	IsBlank = false;
+		// }
 
 	}
 
