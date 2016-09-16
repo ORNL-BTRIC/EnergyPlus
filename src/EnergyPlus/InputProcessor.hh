@@ -179,7 +179,7 @@ namespace EnergyPlus {
 		static json jdf;
 		static std::ostream * echo_stream;
 		static std::unordered_map < std::string,
-				std::pair <json::const_iterator, std::vector <json::const_iterator> * > > jdd_and_jdf_locations;
+				std::pair <json::const_iterator, std::vector <json::const_iterator> > > jdd_jdf_cache_map;
 
 		template < class T >
 		struct is_shared_ptr : std::false_type {};
@@ -190,6 +190,9 @@ namespace EnergyPlus {
 		// Needed for unit tests, should not be normally called.
 		static void
 		clear_state();
+
+		static void
+		initialize_cache();
 
 		static
 		void

@@ -27,9 +27,9 @@ json EnergyPlus::InputProcessor::jdf = json();
 json EnergyPlus::InputProcessor::schema = json();
 IdfParser EnergyPlus::InputProcessor::idf_parser = IdfParser();
 State EnergyPlus::InputProcessor::state = State();
-std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> *> >
-		EnergyPlus::InputProcessor::jdd_and_jdf_locations =
-		std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> *> > ();
+std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > >
+		EnergyPlus::InputProcessor::jdd_jdf_cache_map =
+		std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > > ();
 char EnergyPlus::InputProcessor::s[] = { 0 };
 std::ostream * EnergyPlus::InputProcessor::echo_stream = nullptr;
 
@@ -852,11 +852,7 @@ namespace EnergyPlus {
 		state.errors.clear();
 		state.warnings.clear();
 		jdf.clear();
-		for (auto const & outer : jdd_and_jdf_locations) {
-			auto const & pair = outer.second;
-            delete pair.second;
-		}
-		jdd_and_jdf_locations.clear();
+		jdd_jdf_cache_map.clear();
 		EchoInputFile = 0;
 		echo_stream = nullptr;
 	}
@@ -955,29 +951,7 @@ namespace EnergyPlus {
 //		ofs << InputProcessor::jdf.dump(4) << std::endl;
 
 
-		// TODO TODO TODO TODO TODO INCOMPLETE
-		auto const & schema_properties = schema[ "properties" ];
-
-
-
-		for (auto schema_iter = schema_properties.begin(); schema_iter != schema_properties.end(); schema_iter++) {
-            std::string test = schema_iter.key();
-			auto const & jdf_find_obj_iter = jdf.find( schema_iter.key() );
-			if ( jdf_find_obj_iter == jdf.end() ) {
-//				std::vector < json::iterator > blah (1, nullptr);
-//				jdd_and_jdf_locations[ schema_iter.key() ] = std::make_pair(schema_iter, std::vector < json::iterator > { nullptr } );
-				// ^^ if this key is not in the JDF, then maybe we shouldn't include it in the cache for better lookup performance
-				continue;
-			}
-
-            auto const & objects = jdf_find_obj_iter.value();
-			auto * jdf_obj_iterators_vec = new std::vector < json::const_iterator > ( );
-			for (auto jdf_obj_iter = objects.begin(); jdf_obj_iter != objects.end(); jdf_obj_iter++) {
-                jdf_obj_iterators_vec->emplace_back(jdf_obj_iter);
-			}
-            auto pair = std::make_pair( schema_iter, jdf_obj_iterators_vec );
-			jdd_and_jdf_locations[ schema_iter.key() ] = pair;
-		}
+		initialize_cache();
 
 		int MaxArgs = 0;
 		int MaxAlpha = 0;
@@ -1049,6 +1023,26 @@ namespace EnergyPlus {
 	}
 
 	void
+	EnergyPlus::InputProcessor::initialize_cache() {
+        jdd_jdf_cache_map.clear();
+		jdd_jdf_cache_map.reserve( jdf.size() );
+		auto const & schema_properties = schema[ "properties" ];
+
+		for (auto jdf_iter = jdf.begin(); jdf_iter != jdf.end(); jdf_iter++) {
+
+			auto const & objects = jdf_iter.value();
+			std::vector < json::const_iterator > jdf_obj_iterators_vec;
+			jdf_obj_iterators_vec.reserve( objects.size() );
+			for (auto jdf_obj_iter = objects.begin(); jdf_obj_iter != objects.end(); jdf_obj_iter++) {
+				jdf_obj_iterators_vec.emplace_back(jdf_obj_iter);
+			}
+            auto const & schema_iter = schema_properties.find( jdf_iter.key() );
+			auto pair = std::make_pair( schema_iter, std::move( jdf_obj_iterators_vec ) );
+			jdd_jdf_cache_map[ schema_iter.key() ] = pair;
+		}
+	}
+
+	void
 	EnergyPlus::InputProcessor::GetObjectItem(
 		std::string const & Object,
 		int const Number,
@@ -1071,32 +1065,15 @@ namespace EnergyPlus {
 		// PURPOSE OF THIS SUBROUTINE:
 		// This subroutine gets the 'number' 'object' from the IDFRecord data structure.
 
-		json * object_in_jdf;
-		std::string really_bad_copy_bc_im_tired;
-		if ( jdf.find( Object ) == jdf.end() ) {
-			auto tmp_umit = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase( Object ) );
-			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end()
-			     || jdf.find( tmp_umit->second ) == jdf.end() ) {
+		auto find_obj_in_cache = jdd_jdf_cache_map.find( Object );
+        if ( find_obj_in_cache == jdd_jdf_cache_map.end() ) {
+			auto const & insensitive_find = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase (Object) );
+			if ( insensitive_find == InputProcessor::idf_parser.case_insensitive_keys.end()
+					|| jdf.find( insensitive_find->second ) == jdf.end() ) {
 				return;
 			}
-			object_in_jdf = &jdf[ tmp_umit->second ];
-            really_bad_copy_bc_im_tired = tmp_umit->second;
-		} else {
-			object_in_jdf = &jdf[ Object ];
-			really_bad_copy_bc_im_tired = Object;
-		}
-
-		json * object_in_schema = &schema[ "properties" ];
-		if ( object_in_schema->find( Object ) == object_in_schema->end() ) {
-			auto tmp_umit = InputProcessor::idf_parser.case_insensitive_keys.find( MakeUPPERCase( Object ) );
-			if ( tmp_umit == InputProcessor::idf_parser.case_insensitive_keys.end() ) {
-				ShowWarningError( "Did not find object " + Object + " in schema" );
-				return;
-			}
-			object_in_schema = & (*object_in_schema)[ tmp_umit->second ];
-			really_bad_copy_bc_im_tired = tmp_umit->second;
-		} else {
-			object_in_schema = & (*object_in_schema)[ Object ];
+			find_obj_in_cache = jdd_jdf_cache_map.find( insensitive_find->second );
+            if ( find_obj_in_cache == jdd_jdf_cache_map.end() ) return;
 		}
 
 		NumAlphas = 0;
@@ -1108,12 +1085,13 @@ namespace EnergyPlus {
 		auto const & is_NumericFieldNames = present(NumericFieldNames);
 
         // Locations in JSON schema relating to normal fields
-		auto const & schema_patternProperties = object_in_schema->at( "patternProperties" );
+		auto const & object_in_schema = find_obj_in_cache->second.first.value();
+		auto const & schema_patternProperties = object_in_schema[ "patternProperties" ];
 		auto const & schema_dot_star = schema_patternProperties[ ".*" ];
 		auto const & schema_obj_props = schema_dot_star[ "properties" ];
 
 		// Locations in JSON schema storing the positional aspects from the IDD format, legacy prefixed
-		auto const & legacy_idd = object_in_schema->at( "legacy_idd" );
+		auto const & legacy_idd = object_in_schema[ "legacy_idd" ];
 		auto const & legacy_idd_alphas = legacy_idd[ "alphas" ];
 		auto const & legacy_idd_numerics = legacy_idd[ "numerics" ];
 
@@ -1122,25 +1100,16 @@ namespace EnergyPlus {
 		Numbers = 0;
 
 
-		auto const & blah = jdd_and_jdf_locations.find(really_bad_copy_bc_im_tired);
-        if ( blah == jdd_and_jdf_locations.end() ) {
-			// This should never happen but it will with this messy code, not anymore bc I added
-			// std::string really_bad_copy_bc_im_tired
-			return;
-		}
-        auto const & schema_str_key = blah->first;
-		auto const & pair = blah->second;
-		auto const vec = pair.second;
+        auto const & schema_str_key = find_obj_in_cache->first;
+		auto const & pair = find_obj_in_cache->second;
+		auto const & vec = pair.second;
 
-		auto const & obj = (*vec)[ Number - 1 ];
-
-//		auto const & obj = object_in_jdf->begin() + Number - 1;
-		auto const & obj_val = obj.value();
+		auto const & obj = vec[ Number - 1 ];
 		auto const & legacy_idd_alphas_fields = legacy_idd_alphas[ "fields" ];
 		for ( int i = 0; i < legacy_idd_alphas_fields.size(); ++i ) {
 			std::string const & field = legacy_idd_alphas_fields[ i ];
 			if ( field == "name" ) {
-				auto const & name_iter = object_in_schema->at("name");
+				auto const & name_iter = object_in_schema[ "name" ];
                 if ( name_iter.find( "retaincase" ) != name_iter.end() ) {
 					Alphas( i + 1 ) = obj.key();
 				} else {
@@ -1151,8 +1120,8 @@ namespace EnergyPlus {
 				NumAlphas++;
 				continue;
 			}
-			auto it = obj_val.find( field );
-			if ( it != obj_val.end() ) {
+			auto it = obj.value().find( field );
+			if ( it != obj.value().end() ) {
 				if ( it.value().is_string() ) {
 					std::string val;
 					auto const & schema_field_obj = schema_obj_props[ field ];
