@@ -1647,6 +1647,32 @@ namespace EnergyPlus {
 		return 0; // Not found
 	}
 
+    int
+    EnergyPlus::InputProcessor::FindItem(
+            std::string const & String,
+            std::set <std::string, InsensitiveCompare> const ListOfItems
+    ) {
+
+        // FUNCTION INFORMATION:
+        //       AUTHOR         Linda K. Lawrie
+        //       DATE WRITTEN   April 1999
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS FUNCTION:
+        // This function looks up a string in a similar list of
+        // items and returns the index of the item in the list, if
+        // found.  This routine is case insensitive.
+
+        // SUBROUTINE LOCAL VARIABLE DECLARATIONS:
+
+        auto FindItem = ListOfItems.find( String );
+        if ( FindItem != ListOfItems.end() )
+            return (int) std::distance(FindItem, ListOfItems.begin());
+
+        return 0; // Not found
+    }
+
 	std::string
 	EnergyPlus::InputProcessor::MakeUPPERCase( std::string const & InputString ) {
 
@@ -1764,6 +1790,49 @@ namespace EnergyPlus {
 		// }
 
 	}
+
+    void
+    EnergyPlus::InputProcessor::VerifyName(
+            std::string const & NameToVerify,
+            std::set <std::string, InsensitiveCompare> const NamesList,
+            int const NumOfNames,
+            bool & ErrorFound,
+            bool & IsBlank,
+            std::string const & StringToDisplay
+    ) {
+
+        // SUBROUTINE INFORMATION:
+        //       AUTHOR         Linda Lawrie
+        //       DATE WRITTEN   February 2000
+        //       MODIFIED       na
+        //       RE-ENGINEERED  na
+
+        // PURPOSE OF THIS SUBROUTINE:
+        // This subroutine verifys that a new name can be added to the
+        // list of names for this item (i.e., that there isn't one of that
+        // name already and that this name is not blank).
+
+        // SUBROUTINE LOCAL VARIABLE DECLARATIONS
+
+         ErrorFound = false;
+
+         if ( NameToVerify.empty() ) {
+             ShowSevereError( StringToDisplay + ", cannot be blank" );
+             ErrorFound = true;
+             IsBlank = true;
+             return; //not sure but i think if check name for emptiness first we can avoid search in a list
+         } else {
+             IsBlank = false;
+         }
+
+         if ( NumOfNames > 0 ) {
+              int Found = FindItem(NameToVerify, NamesList);
+         	if ( Found != 0 ) {
+         		ShowSevereError( StringToDisplay + ", duplicate name=" + NameToVerify );
+         		ErrorFound = true;
+            }
+         }
+    }
 
 	void
 	EnergyPlus::InputProcessor::RangeCheck(

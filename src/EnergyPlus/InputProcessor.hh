@@ -8,7 +8,10 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <set>
 #include <fstream>
+
+
 
 // ObjexxFCL Headers
 #include <ObjexxFCL/Array1S.fwd.hh>
@@ -25,6 +28,33 @@
 #include <UtilityRoutines.hh>
 
 using json = nlohmann::json;
+
+struct InsensitiveCompare {
+    bool operator() (const std::string& x, const std::string& y) const
+    {
+        unsigned int xs ( x.size() );
+        unsigned int ys ( y.size() );
+        unsigned int bound ( 0 );
+
+        if ( xs < ys )
+            bound = xs;
+        else
+            bound = ys;
+
+        {
+            unsigned int i = 0;
+            for (auto it1 = x.begin(), it2 = y.begin(); i < bound; ++i, ++it1, ++it2)
+            {
+                if (tolower(*it1) < tolower(*it2))
+                    return true;
+
+                if (tolower(*it2) < tolower(*it1))
+                    return false;
+            }
+        }
+        return false;
+    }
+};
 
 class IdfParser {
 public:
@@ -515,6 +545,13 @@ namespace EnergyPlus {
 			int const NumItems
 		);
 
+        static
+        int
+        FindItem(
+                std::string const & String,
+                std::set <std::string, InsensitiveCompare> const ListOfItems
+        );
+
 		inline
 		static
 		int
@@ -705,6 +742,17 @@ namespace EnergyPlus {
 			bool & IsBlank,
 			std::string const & StringToDisplay
 		);
+
+        static
+        void
+        VerifyName(
+                std::string const & NameToVerify,
+                std::set <std::string, InsensitiveCompare > const NamesList,
+                int const NumOfNames,
+                bool & ErrorFound,
+                bool & IsBlank,
+                std::string const & StringToDisplay
+        );
 
 		template < typename A >
 		static
