@@ -22,12 +22,14 @@
 #include <milo/itoa.hpp>
 
 using json = nlohmann::json;
-#include <iomanip>
 
 json EnergyPlus::InputProcessor::jdf = json();
 json EnergyPlus::InputProcessor::schema = json();
 IdfParser EnergyPlus::InputProcessor::idf_parser = IdfParser();
 State EnergyPlus::InputProcessor::state = State();
+std::unordered_map < std::string, std::vector< std::pair < json::iterator, json::iterator > > >
+		EnergyPlus::InputProcessor::jdd_and_jdf_locations =
+		std::unordered_map < std::string, std::pair < json::iterator, std::vector < json::iterator > > > ();
 char EnergyPlus::InputProcessor::s[] = { 0 };
 std::ostream * EnergyPlus::InputProcessor::echo_stream = nullptr;
 
@@ -271,35 +273,6 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		array_of_extensions = nullptr;
 	}
 	return root;
-}
-
-void IdfParser::add_missing_field_value( std::string const & field_name, json & root, json & extensible, json const & obj_loc,
-                                         json const & loc, int legacy_idd_index ) {
-	// This can be changed significantly by passing only the json object you are going to modify in, i.e. root or
-	// extensible, and pass only the currect object location in as well, either the whole
-	// patternProperties->.*->properties thing or the extensions->items->properties thing, this way you can get rid of a
-	// lot of if statements as well as map lookups, also patternProperties is ALWAYS there now bc we removed the special
-	// casing of the version object which did not contain patternProperties
-	json const * tmp;
-	int ext_size = 0;
-	if ( obj_loc.find( "patternProperties" ) != obj_loc.end() ) {
-		tmp = & obj_loc[ "patternProperties" ][ ".*" ][ "properties" ];
-	}
-
-//	else if ( obj_loc.find( "properties" ) != obj_loc.end() ) {
-//		tmp = & obj_loc[ "properties" ][ field_name ];
-//	}
-	if ( legacy_idd_index >= loc[ "fields" ].size() ) {
-		tmp = & tmp->at( "extensions" )[ "items" ][ "properties" ];
-		ext_size = static_cast<int>(loc[ "extensibles" ].size());
-	}
-	if ( tmp->find( field_name ) != tmp->end() || obj_loc.find( field_name ) != obj_loc.end() ) {
-		if ( !ext_size ) {
-			root[ field_name ] = "";
-		} else {
-			extensible[ field_name ] = "";
-		}
-	}
 }
 
 json IdfParser::parse_number( std::string const & idf, size_t & index, bool & success ) {
@@ -976,6 +949,23 @@ namespace EnergyPlus {
 //		std::ofstream ofs("json_dump.json", std::ofstream::out);
 //		ofs << InputProcessor::jdf.dump(4) << std::endl;
 
+
+		// TODO TODO TODO TODO TODO INCOMPLETE
+		auto const & schema_properties = schema[ "properties" ];
+		for (json::iterator const & schema_iter : schema_properties ) {
+			auto const & jdf_obj_iter = jdf.find( schema_iter.key() );
+			if ( jdf_obj_iter == jdf.end() ) {
+				std::vector < json::iterator > (nullptr);
+				jdd_and_jdf_locations[ schema_iter.key() ] = std::make_pair(schema_iter, std::vector < json::iterator > (nullptr) );
+				continue;
+			}
+
+//			std::vector < json::iterator > jdf_obj_iterators;
+//			for (auto const & jdf_obj : jdf_obj_iter.value()) {
+//                jdf_obj_iterators.emplace_back(jdf_obj);
+//			}
+		}
+
 		int MaxArgs = 0;
 		int MaxAlpha = 0;
 		int MaxNumeric = 0;
@@ -1113,6 +1103,7 @@ namespace EnergyPlus {
 
 		Alphas = "";
 		Numbers = 0;
+
 
 		auto const & obj = object_in_jdf->begin() + Number - 1;
 		auto const & obj_val = obj.value();

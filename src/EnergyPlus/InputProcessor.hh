@@ -55,9 +55,6 @@ public:
 	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
 	                   json const & obj_loc );
 
-	void add_missing_field_value( std::string const & field_name, json & root, json & extensible, json const & obj_loc,
-	                              json const & loc, int legacy_idd_index );
-
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
 	json parse_number( std::string const & idf, size_t & index, bool & success );
@@ -181,6 +178,8 @@ namespace EnergyPlus {
 		static json schema;
 		static json jdf;
 		static std::ostream * echo_stream;
+		static std::unordered_map < std::string,
+				std::pair < json::iterator, std::vector < json::iterator > > > jdd_and_jdf_locations;
 
 		template < class T >
 		struct is_shared_ptr : std::false_type {};
