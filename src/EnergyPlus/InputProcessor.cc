@@ -20,6 +20,7 @@
 #include <SortAndStringUtilities.hh>
 #include <milo/dtoa.hpp>
 #include <milo/itoa.hpp>
+#include <milo/count_until.hpp>
 
 using json = nlohmann::json;
 #include <iomanip>
@@ -395,64 +396,72 @@ json IdfParser::parse_value( std::string const & idf, size_t & index, bool & suc
 std::string IdfParser::parse_string( std::string const & idf, size_t & index, bool & success ) {
 	eat_whitespace( idf, index );
 
-	std::string s;
-	char c;
+	size_t starting_index = index;
 
-	bool complete = false;
-	while ( !complete ) {
-		if ( index == idf.size() ) {
-			complete = true;
-			break;
-		}
+	auto const string_length = simd_count_until( idf.c_str(), ';', ',' );
 
-		c = idf[ index ];
-		increment_both_index( index, index_into_cur_line );
-		if ( c == ',' ) {
-			complete = true;
-			decrement_both_index( index, index_into_cur_line );
-			break;
-		} else if ( c == ';' ) {
-			complete = true;
-			decrement_both_index( index, index_into_cur_line );
-			break;
-		} else if ( c == '!' ) {
-			complete = true;
-			decrement_both_index( index, index_into_cur_line );
-			break;
-		} else if ( c == '\\' ) {
-			if ( index == idf.size() ) break;
-			char next_c = idf[ index ];
-			increment_both_index( index, index_into_cur_line );
-			if ( next_c == '"' ) {
-				s += '"';
-			} else if ( next_c == '\\' ) {
-				s += '\\';
-			} else if ( next_c == '/' ) {
-				s += '/';
-			} else if ( next_c == 'b' ) {
-				s += '\b';
-			} else if ( next_c == 't' ) {
-				s += '\t';
-			} else if ( next_c == 'n' ) {
-				complete = false;
-				break;
-			} else if ( next_c == 'r' ) {
-				complete = false;
-				break;
-			} else {
-				s += c;
-				s += next_c;
-			}
-		} else {
-			s += c;
-		}
-	}
+	index += string_length;
 
-	if ( !complete ) {
-		success = false;
-		return std::string();
-	}
-	return rtrim( s );
+	return std::string( idf, starting_index, string_length );
+
+	// std::string s;
+	// char c;
+
+	// bool complete = false;
+	// while ( !complete ) {
+	// 	if ( index == idf.size() ) {
+	// 		complete = true;
+	// 		break;
+	// 	}
+
+	// 	c = idf[ index ];
+	// 	increment_both_index( index, index_into_cur_line );
+	// 	if ( c == ',' ) {
+	// 		complete = true;
+	// 		decrement_both_index( index, index_into_cur_line );
+	// 		break;
+	// 	} else if ( c == ';' ) {
+	// 		complete = true;
+	// 		decrement_both_index( index, index_into_cur_line );
+	// 		break;
+	// 	} else if ( c == '!' ) {
+	// 		complete = true;
+	// 		decrement_both_index( index, index_into_cur_line );
+	// 		break;
+	// 	} else if ( c == '\\' ) {
+	// 		if ( index == idf.size() ) break;
+	// 		char next_c = idf[ index ];
+	// 		increment_both_index( index, index_into_cur_line );
+	// 		if ( next_c == '"' ) {
+	// 			s += '"';
+	// 		} else if ( next_c == '\\' ) {
+	// 			s += '\\';
+	// 		} else if ( next_c == '/' ) {
+	// 			s += '/';
+	// 		} else if ( next_c == 'b' ) {
+	// 			s += '\b';
+	// 		} else if ( next_c == 't' ) {
+	// 			s += '\t';
+	// 		} else if ( next_c == 'n' ) {
+	// 			complete = false;
+	// 			break;
+	// 		} else if ( next_c == 'r' ) {
+	// 			complete = false;
+	// 			break;
+	// 		} else {
+	// 			s += c;
+	// 			s += next_c;
+	// 		}
+	// 	} else {
+	// 		s += c;
+	// 	}
+	// }
+
+	// if ( !complete ) {
+	// 	success = false;
+	// 	return std::string();
+	// }
+	// return rtrim( s );
 }
 
 void IdfParser::increment_both_index( size_t & index, size_t & line_index ) {
@@ -475,35 +484,48 @@ void IdfParser::print_out_line_error( std::string const & idf, bool obj_found ) 
 }
 
 void IdfParser::eat_whitespace( std::string const & idf, size_t & index ) {
-	while ( index < idf.size() ) {
-		switch ( idf[ index ] ) {
-			case ' ':
-			case '\r':
-			case '\t':
-				increment_both_index( index, index_into_cur_line );
-				continue;
-			case '\n':
-				increment_both_index( index, cur_line_num );
-				beginning_of_line_index = index;
-				index_into_cur_line = 0;
-				continue;
-			default:
-				return;
-		}
+	if (idf[ index ] == ' ' || idf[ index ] == '\n' || idf[ index ] == '\r' || idf[ index ] == '\t') {
+		++index;
+	} else {
+		return;
 	}
+
+	auto const whitespace_length = simd_count_until( idf.c_str(), ' ', '\n', '\r', '\t' );
+	index += whitespace_length;
+
+	// while ( index < idf.size() ) {
+	// 	switch ( idf[ index ] ) {
+	// 		case ' ':
+	// 		case '\r':
+	// 		case '\t':
+	// 			increment_both_index( index, index_into_cur_line );
+	// 			continue;
+	// 		case '\n':
+	// 			increment_both_index( index, cur_line_num );
+	// 			beginning_of_line_index = index;
+	// 			index_into_cur_line = 0;
+	// 			continue;
+	// 		default:
+	// 			return;
+	// 	}
+	// }
 }
 
 void IdfParser::eat_comment( std::string const & idf, size_t & index ) {
-	while ( true ) {
-		if ( index == idf.size() ) break;
-		if ( idf[ index ] == '\n' ) {
-			increment_both_index( index, cur_line_num );
-			index_into_cur_line = 0;
-			beginning_of_line_index = index;
-			break;
-		}
-		increment_both_index( index, index_into_cur_line );
-	}
+	auto const comment_length = simd_count_until( idf.c_str(), '\n' );
+	index += comment_length;
+
+
+	// while ( true ) {
+	// 	if ( index == idf.size() ) break;
+	// 	if ( idf[ index ] == '\n' ) {
+	// 		increment_both_index( index, cur_line_num );
+	// 		index_into_cur_line = 0;
+	// 		beginning_of_line_index = index;
+	// 		break;
+	// 	}
+	// 	increment_both_index( index, index_into_cur_line );
+	// }
 }
 
 IdfParser::Token IdfParser::look_ahead( std::string const & idf, size_t index ) {
