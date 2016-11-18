@@ -20,9 +20,10 @@
 #include <SortAndStringUtilities.hh>
 #include <milo/dtoa.hpp>
 #include <milo/itoa.hpp>
-#include <iomanip>
+#include <utility>
 
 using json = nlohmann::json;
+auto result = json::basic_json(json::value_t::discarded);
 
 json EnergyPlus::InputProcessor::jdf = json();
 json EnergyPlus::InputProcessor::schema = json();
@@ -34,12 +35,12 @@ std::unordered_map < std::string, std::pair < json::const_iterator, std::vector 
 		EnergyPlus::InputProcessor::jdd_jdf_cache_map =
 		std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > > ();
 
-json IdfParser::decode( std::string const & idf, json const & schema ) {
+json IdfParser::decode( std::string const & idf, json const & schema, const json::parser_callback_t cb = nullptr ) {
 	bool success = true;
-	return decode( idf, schema, success );
+	return decode( idf, schema, success, cb );
 }
 
-json IdfParser::decode( std::string const & idf, json const & schema, bool & success ) {
+json IdfParser::decode( std::string const & idf, json const & schema, bool & success, const json::parser_callback_t cb = nullptr ) {
 	success = true;
 	if ( idf.empty() ) {
 		success = false;
@@ -47,7 +48,14 @@ json IdfParser::decode( std::string const & idf, json const & schema, bool & suc
 	}
 
 	size_t index = 0;
-	return parse_idf( idf, index, success, schema );
+	json null_json = json::object();
+	if ( cb ) {
+		cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+	}
+	return parse_idf( idf, index, success, schema, cb );
+	if ( cb ) {
+		cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
+	}
 }
 
 std::string IdfParser::encode( json const & root, json const & schema ) {
@@ -112,8 +120,9 @@ std::string IdfParser::encode( json const & root, json const & schema ) {
 	return encoded;
 }
 
-json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema ) {
+json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb ) {
 	json root;
+	json null_json = json::object();
 	Token token;
     auto const & schema_properties = schema[ "properties" ];
 
@@ -140,7 +149,18 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
-			json obj = parse_object( idf, index, success, legacy_idd, obj_loc );
+			if ( cb ) {
+				auto blah = json::basic_json( obj_name );
+//				cb( depth, json::parse_event_t::key, std::forward<json::basic_json>( json::basic_json( obj_name ) ), line_num, line_index );
+				cb( depth, json::parse_event_t::key, blah, line_num, line_index );
+				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+			}
+			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, cb );
+			if ( cb ) {
+				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
+				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
+			}
 			if ( !success ) print_out_line_error( idf, true );
 			u64toa( root[ obj_name ].size() + 1, s );
 			std::string name = obj_name + " " + s;
@@ -153,7 +173,6 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 						if ( obj_name != "RunPeriod" ) {
 							EnergyPlus::ShowWarningMessage("Duplicate names!! name: " + name);
 						}
-						// name = name + " " + s;
 					}
 				}
 			}
@@ -166,10 +185,11 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 }
 
 json IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
-                              json const & legacy_idd, json const & schema_obj_loc ) {
+                              json const & legacy_idd, json const & schema_obj_loc, const json::parser_callback_t cb) {
 	json root = json::object();
 	json extensible = json::object();
 	json array_of_extensions = json::array();
+	json null_json = json::object(), empty_str_json = std::string();
 	Token token;
 	int legacy_idd_index = 0, extensible_index = 0;
 	success = true;
@@ -200,19 +220,37 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		} else if ( token == Token::COMMA || token == Token::SEMICOLON ) {
 			if ( !was_value_parsed ) {
 				int ext_size = 0;
+				std::string field_name;
 				if ( legacy_idd_index < legacy_idd_fields_array.size() ) {
-					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
+//					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
+					field_name = legacy_idd_fields_array[ legacy_idd_index ];
                     root[ field_name ] = "";
 				} else {
                     auto const & legacy_idd_extensibles_array = legacy_idd_extensibles_iter.value();
 					ext_size = static_cast<int>( legacy_idd_extensibles_array.size() );
-					std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % ext_size ];
+//					std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % ext_size ];
+					field_name = legacy_idd_extensibles_array[ extensible_index % ext_size ];
 					extensible_index++;
                     extensible[ field_name ] = "";
+				}
+				if ( cb ) {
+					if ( extensible_index == 1 ) {
+						// first extensible == array_start token
+						json this_is_bad = "extensions";
+						cb ( depth, json::parse_event_t::key, this_is_bad, line_num, line_index );
+						cb ( depth++, json::parse_event_t::array_start, null_json, line_num, line_index );
+					}
+					if ( (ext_size && extensible_index % ext_size == 1) || ext_size == 1 ) {
+						cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+					}
+					json fn = field_name;
+					cb( depth, json::parse_event_t::key, fn, line_num, line_index );
+					cb( depth, json::parse_event_t::value, empty_str_json, line_num, line_index );
 				}
 				if ( ext_size && extensible_index % ext_size == 0 ) {
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
+					cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 				}
 			}
 			legacy_idd_index++;
@@ -226,10 +264,16 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
                 for (; legacy_idd_index < min_fields; legacy_idd_index++) {
 					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
                     root[ field_name ] = "";
+	                if ( cb ) {
+		                json fn = field_name;
+		                cb(depth, json::parse_event_t::key, fn, line_num, line_index);
+		                cb(depth, json::parse_event_t::value, empty_str_json, line_num, line_index);
+	                }
 				}
 				if ( extensible.size() ) {
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
+					cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 				}
 				break;
 			}
@@ -247,9 +291,26 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			extensible[ field_name ] = std::move( val );
 			was_value_parsed = true;
 			extensible_index++;
+			if ( cb ) {
+				if ( extensible_index == 1 ) {
+					// first extensible == array_start token
+					json this_is_bad = "extensions";
+					cb ( depth, json::parse_event_t::key, this_is_bad, line_num, line_index );
+					cb ( depth++, json::parse_event_t::array_start, null_json, line_num, line_index );
+				}
+				if ( (size && extensible_index % size == 1) || size == 1 ) {
+					cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+				}
+				json fn = field_name;
+				cb( depth, json::parse_event_t::key, fn, line_num, line_index );
+				cb( depth, json::parse_event_t::value, empty_str_json, line_num, line_index );
+			}
 			if ( extensible_index && extensible_index % size == 0 ) {
 				array_of_extensions.push_back( extensible );
 				extensible.clear();
+				if ( cb ) {
+					cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
+				}
 			}
 		} else {
 			was_value_parsed = true;
@@ -264,7 +325,13 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				}
 			} else {
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
+				auto bad_copy_val = val;
 				root[ field ] = std::move( val );
+				if ( cb ) {
+					json fn = field;
+					cb( depth, json::parse_event_t::key, fn, line_num, line_index );
+					cb( depth, json::parse_event_t::value, bad_copy_val, line_num, line_index );
+				}
 			}
 			if ( !success ) return root;
 		}
@@ -272,6 +339,9 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	if ( array_of_extensions.size() ) {
 		root[ "extensions" ] = std::move( array_of_extensions );
 		array_of_extensions = nullptr;
+		if ( cb ) {
+			cb( --depth, json::parse_event_t::array_end, null_json, line_num, line_index );
+		}
 	}
 	return root;
 }
@@ -573,7 +643,9 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 
 		case json::parse_event_t::value: {
 			validate( parsed, line_num, line_index );
-			if ( does_key_exist ) stack.pop_back();
+			if ( does_key_exist ) {
+				stack.pop_back();
+			}
 			does_key_exist = true;
 			last_seen_event = event;
 			break;
@@ -951,16 +1023,16 @@ namespace EnergyPlus {
 		std::string input_file = memblock;
 		delete[] memblock;
 		InputProcessor::idf_parser.initialize(InputProcessor::schema);
-		json const user_input = InputProcessor::idf_parser.decode(input_file, InputProcessor::schema);
-		auto const user_input_dump = user_input.dump();
-
 		InputProcessor::state.initialize( & InputProcessor::schema );
-
 		json::parser_callback_t cb = [](int depth, json::parse_event_t event, json &parsed, unsigned line_num, unsigned line_index) -> bool {
 			InputProcessor::state.traverse(event, parsed, line_num, line_index);
 			return true;
 		};
-		InputProcessor::jdf = json::parse(user_input_dump, cb);
+		json const user_input = InputProcessor::idf_parser.decode(input_file, InputProcessor::schema, cb);
+//		auto const user_input_dump = user_input.dump();
+
+//		InputProcessor::jdf = json::parse(user_input_dump, cb);
+
 //		InputProcessor::state.print_errors();
 //		std::string const encoded = InputProcessor::idf_parser.encode( InputProcessor::jdf, InputProcessor::schema );
 //		std::ofstream ofs("encoded_json.idf", std::ofstream::out);

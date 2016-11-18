@@ -70,6 +70,7 @@
 
 #include <tuple>
 #include <map>
+#include <regex>
 
 namespace EnergyPlus {
 
@@ -530,7 +531,7 @@ namespace EnergyPlus {
                 }
             }
         }
-        json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
+//		json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
         EXPECT_EQ(InputProcessor::state.errors.size() + InputProcessor::state.warnings.size(), 0);
         EXPECT_TRUE(success);
     }
@@ -709,7 +710,7 @@ namespace EnergyPlus {
             }
         }
 
-        json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
+//        json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
         EXPECT_EQ(InputProcessor::state.errors.size() + InputProcessor::state.warnings.size(), 0);
     }
 
@@ -1135,11 +1136,11 @@ namespace EnergyPlus {
 						";                        !- Constant Cooling Setpoint {C}"
 				}));
 		ASSERT_TRUE( process_idf( idf ) );
-		json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
+//		json::parse(InputProcessor::jdf.dump(2), EnergyPlusFixture::call_back);
 		EXPECT_EQ(InputProcessor::state.errors.size() + InputProcessor::state.warnings.size(), 2);
 		if (InputProcessor::state.errors.size() >= 2) {
-			EXPECT_NE(InputProcessor::state.errors[0].find("You must run the ExpandObjects program for \"HVACTemplate:Thermostat\" at line"), std::string::npos);
-			EXPECT_NE(InputProcessor::state.errors[1].find("You must run Parametric Preprocessor for \"Parametric:Logic\" at line"), std::string::npos);
+			EXPECT_TRUE(std::regex_search(InputProcessor::state.errors[0], std::regex("You must run Parametric Preprocessor for \"Parametric:Logic\" at line")));
+			EXPECT_TRUE(std::regex_search(InputProcessor::state.errors[1], std::regex("You must run the ExpandObjects program for \"HVACTemplate:Thermostat\" at line")));
 		}
 	}
 
