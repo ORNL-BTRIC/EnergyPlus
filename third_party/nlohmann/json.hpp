@@ -999,7 +999,7 @@ Format](http://rfc7159.net/rfc7159)
     @since version 1.0.0
     */
         using parser_callback_t = std::function<bool(int depth, parse_event_t event, basic_json& parsed,
-                                                     unsigned line_num, unsigned line_index)>;
+                                                     size_t line_num, size_t line_index)>;
 
 
         //////////////////
@@ -7475,10 +7475,10 @@ Format](http://rfc7159.net/rfc7159)
         class lexer
         {
         public:
-            unsigned get_line_num() { return line_num; }
-            unsigned get_line_index() { return line_index; }
-            void set_line_index(unsigned num) { line_index = num; }
-            void set_line_num(unsigned num) { line_num = num; }
+            size_t get_line_num() { return line_num; }
+            size_t get_line_index() { return line_index; }
+            void set_line_index(size_t num) { line_index = num; }
+            void set_line_num(size_t num) { line_num = num; }
 
             /// token types for the parser
             enum class token_type
@@ -8827,7 +8827,7 @@ Format](http://rfc7159.net/rfc7159)
             }
 
         private:
-            unsigned line_num = 1, line_index = 0;
+            size_t line_num = 1, line_index = 0;
             /// optional input stream
             std::istream* m_stream = nullptr;
             /// the buffer
@@ -8854,8 +8854,8 @@ Format](http://rfc7159.net/rfc7159)
         class parser
         {
         public:
-            unsigned get_line_num() { return m_lexer.get_line_num(); }
-            unsigned get_line_index() { return m_lexer.get_line_index(); }
+            size_t get_line_num() { return m_lexer.get_line_num(); }
+            size_t get_line_index() { return m_lexer.get_line_index(); }
             void set_line_index(unsigned num) { m_lexer.set_line_index(num); }
             void set_line_num(unsigned num) { m_lexer.set_line_num(num); }
 

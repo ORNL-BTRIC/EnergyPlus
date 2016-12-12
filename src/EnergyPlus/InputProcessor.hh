@@ -30,15 +30,10 @@ using json = nlohmann::json;
 
 class IdfParser {
 public:
-	void initialize( json const & schema ) {
-		if ( schema.is_null() ) return;
-		const json & loc = schema[ "properties" ];
-		for ( auto it = loc.begin(); it != loc.end(); ++it ) {
-			std::string key = it.key();
-			for ( char & c : key ) c = toupper( c );
-			case_insensitive_keys[ key ] = it.key();
-		}
-	}
+
+	void clear_state();
+
+	void initialize( json const & schema );
 
 	std::unordered_map < std::string, std::string > case_insensitive_keys;
 
@@ -50,6 +45,10 @@ public:
 
 	enum class Token : size_t {
 		NONE = 0, END = 1, EXCLAMATION = 2, COMMA = 3, SEMICOLON = 4, STRING = 5, NUMBER = 6
+	};
+
+	enum class Error : size_t {
+		EXTRA_FIELD = 0, OBJ_NOT_FOUND = 1
 	};
 
 	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb );
@@ -68,6 +67,8 @@ public:
 	void eat_comment( std::string const & idf, size_t & index );
 
 	void print_out_line_error( std::string const & idf, bool obj_found );
+
+	void handle_error(Error err);
 
 	void increment_both_index( size_t & index, size_t & line_index );
 
@@ -96,21 +97,12 @@ public:
 		return s;
 	}
 
-//	std::string read_from_file( std::string const & input_file_name ) {
-//		std::ifstream in( input_file_name, std::ios::in | std::ios::binary );
-//		if ( in ) {
-//			return ( std::string( ( std::istreambuf_iterator < char >( in ) ), std::istreambuf_iterator < char >() ) );
-//		}
-//		throw ( errno );
-//	}
-
 private:
 	int depth = 0;
-	unsigned line_num = 0, line_index = 0;
-	size_t cur_line_num = 1;
-	size_t index_into_cur_line = 0;
+	size_t line_num = 1, line_index = 0;
 	size_t beginning_of_line_index = 0;
 	char s[ 129 ];
+	char s2[ 129 ];
 };
 
 class State {
@@ -129,21 +121,19 @@ class State {
 	char s2[ 129 ];
 
 public:
+	enum class Error : size_t {
+		EXCLUSIVE_MIN = 0, MIN = 1, EXCLUSIVE_MAX = 2, MAX = 3
+	};
+
 	void initialize( json const * parsed_schema );
 
-	void traverse( json::parse_event_t & event, json & parsed, unsigned line_num, unsigned line_index );
+	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index );
 
-	void validate( json & parsed, unsigned line_num, unsigned line_index );
+	void validate( json & parsed, size_t line_num, size_t line_index );
 
 	std::vector < std::string > errors, warnings;
 
-	int print_errors() {
-		if ( warnings.size() ) EnergyPlus::ShowContinueError("Warnings: " + std::to_string(errors.size()));
-		for ( auto const & s: warnings ) EnergyPlus::ShowContinueError( s );
-		if ( errors.size() ) EnergyPlus::ShowWarningError("Errors: " + std::to_string(errors.size()));
-		for ( auto const & s : errors ) EnergyPlus::ShowWarningError( s );
-		return static_cast<int> ( errors.size() + warnings.size() );
-	}
+	int print_errors();
 
 	bool icompare( std::string const & s1, std::string const & s2 ) {
 		if ( s1.length() == s2.length() ) {
@@ -155,19 +145,9 @@ public:
 		return false;
 	}
 
-	void add_error( std::string err, double val, unsigned line_num, unsigned line_index ) {
-		std::string str = "Value \"" + std::to_string( val ) + "\" parsed at line " + std::to_string( line_num )
-		                  + " (index " + std::to_string( line_index ) + ")";
-		if ( err == "max" ) {
-			errors.push_back( str + " exceeds maximum" );
-		} else if ( err == "exmax" ) {
-			errors.push_back( str + " exceeds or equals exclusive maximum" );
-		} else if ( err == "min" ) {
-			errors.push_back( str + " is less than the minimum" );
-		} else if ( err == "exmin" ) {
-			errors.push_back( str + " is less than or equal to the exclusive minimum" );
-		}
-	}
+	void add_error( std::string err, double val, unsigned line_num, unsigned line_index );
+
+	void handle_error( Error err, size_t line_num, size_t line_index );
 };
 
 namespace EnergyPlus {

@@ -20,7 +20,6 @@
 #include <SortAndStringUtilities.hh>
 #include <milo/dtoa.hpp>
 #include <milo/itoa.hpp>
-#include <utility>
 
 using json = nlohmann::json;
 auto result = json::basic_json(json::value_t::discarded);
@@ -34,6 +33,21 @@ std::ostream * EnergyPlus::InputProcessor::echo_stream = nullptr;
 std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > >
 		EnergyPlus::InputProcessor::jdd_jdf_cache_map =
 		std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > > ();
+
+void IdfParser::clear_state() {
+	line_num = 1;
+	line_index = 0;
+}
+
+void IdfParser::initialize( json const & schema ) {
+	if ( schema.is_null() ) return;
+	const json & loc = schema[ "properties" ];
+	for ( auto it = loc.begin(); it != loc.end(); ++it ) {
+		std::string key = it.key();
+		for ( char & c : key ) c = static_cast< char >( toupper( c ) );
+		case_insensitive_keys[ key ] = it.key();
+	}
+}
 
 json IdfParser::decode( std::string const & idf, json const & schema, const json::parser_callback_t cb = nullptr ) {
 	bool success = true;
@@ -142,7 +156,9 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			if ( find_key != case_insensitive_keys.end() ) {
 				obj_name = find_key->second;
 			} else {
-				print_out_line_error( idf, false );
+//				print_out_line_error( idf, false ); // error
+				handle_error( Error::OBJ_NOT_FOUND );
+
 				while ( token != Token::SEMICOLON && token != Token::END ) token = next_token( idf, index );
 				continue;
 			}
@@ -150,9 +166,8 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
 			if ( cb ) {
-				auto blah = json::basic_json( obj_name );
-//				cb( depth, json::parse_event_t::key, std::forward<json::basic_json>( json::basic_json( obj_name ) ), line_num, line_index );
-				cb( depth, json::parse_event_t::key, blah, line_num, line_index );
+				auto obj = json::basic_json( obj_name );
+				cb( depth, json::parse_event_t::key, obj, line_num, line_index );
 				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 			}
@@ -161,7 +176,10 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 			}
-			if ( !success ) print_out_line_error( idf, true );
+//			if ( !success ) print_out_line_error( idf, true ); // error
+			if ( !success ) {
+				handle_error( Error::EXTRA_FIELD );
+			}
 			u64toa( root[ obj_name ].size() + 1, s );
 			std::string name = obj_name + " " + s;
 			if ( !obj.is_null() ) {
@@ -171,7 +189,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 					obj.erase( name_iter );
 					if ( root[ obj_name ].find( name ) != root[ obj_name ].end() ) {
 						if ( obj_name != "RunPeriod" ) {
-							EnergyPlus::ShowWarningMessage("Duplicate names!! name: " + name);
+							EnergyPlus::ShowWarningMessage("Duplicate names!! name: " + name); // error
 						}
 					}
 				}
@@ -320,8 +338,8 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				if ( field == "name" ) {
 					root[ field ] = parse_string( idf, index, success );
 				} else {
-					u64toa( cur_line_num, s );
-					EnergyPlus::ShowWarningMessage( "Field " + field + " was not found at line " + s );
+					u64toa( line_num, s );
+					EnergyPlus::ShowWarningMessage( "Field " + field + " was not found at line " + s ); // error
 				}
 			} else {
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
@@ -379,6 +397,10 @@ json IdfParser::parse_number( std::string const & idf, size_t & index, bool & su
 
 
 	assert( !num_str.empty() );
+	if ( num_str.empty() ) {
+		success = false;
+
+	}
 
 	if ( num_str[ num_str.size() - 1 ] == 'e' || num_str[ num_str.size() - 1 ] == 'E' ) {
 		success = false;
@@ -437,12 +459,12 @@ json IdfParser::parse_value( std::string const & idf, size_t & index, bool & suc
 				return parsed_string;
 			}
 			case Token::NUMBER: {
-				size_t save_line_index = index_into_cur_line;
-				size_t save_line_num = cur_line_num;
+				size_t save_line_index = line_index;
+				size_t save_line_num = line_num;
 				json value = parse_number(idf, index, success);
 				if ( !success ) {
-					cur_line_num = save_line_num;
-					index_into_cur_line = save_line_index;
+					line_num = save_line_num;
+					line_index = save_line_index;
 					success = true;
 					return parse_string(idf, index, success);
 				}
@@ -474,23 +496,23 @@ std::string IdfParser::parse_string( std::string const & idf, size_t & index, bo
 		}
 
 		c = idf[ index ];
-		increment_both_index( index, index_into_cur_line );
+		increment_both_index( index, line_index );
 		if ( c == ',' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == ';' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == '!' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == '\\' ) {
 			if ( index == idf.size() ) break;
 			char next_c = idf[ index ];
-			increment_both_index( index, index_into_cur_line );
+			increment_both_index( index, line_index );
 			if ( next_c == '"' ) {
 				s += '"';
 			} else if ( next_c == '\\' ) {
@@ -533,15 +555,29 @@ void IdfParser::decrement_both_index( size_t & index, size_t & line_index ) {
 	line_index--;
 }
 
-void IdfParser::print_out_line_error( std::string const & idf, bool obj_found ) {
-	std::string line;
-	if ( obj_found ) EnergyPlus::ShowWarningError( "error: \"extra field(s)\" " );
-	else EnergyPlus::ShowWarningError( "error: \"obj not found in schema\" " );
-    EnergyPlus::ShowWarningError( "at line number " + std::to_string( cur_line_num )
-								  + " (index " + std::to_string(index_into_cur_line)  + ")\nLine:\n" );
-	while ( idf[ beginning_of_line_index++ ] != '\n' ) line += idf[ beginning_of_line_index ];
-    EnergyPlus::ShowWarningError( line );
+void IdfParser::handle_error(Error err) {
+//	auto err_str = " at line " + std::to_string( line_num ) + " (index " + index + ")\n";
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	auto err_str = " at line " + s + " (index " + s2 + ")\n";
+
+	switch (err) {
+		case Error::EXTRA_FIELD:
+			EnergyPlus::ShowWarningError( "IdfParser: extra field(s)" + err_str );
+		case Error::OBJ_NOT_FOUND:
+			EnergyPlus::ShowWarningError( "IdfParser: object not found in schema"  + err_str );
+	}
 }
+
+//void IdfParser::print_out_line_error( std::string const & idf, bool obj_found ) {
+//	std::string line;
+//	if ( obj_found ) EnergyPlus::ShowWarningError( "error: \"extra field(s)\" " );
+//	else EnergyPlus::ShowWarningError( "error: \"obj not found in schema\" " );
+//    EnergyPlus::ShowWarningError( "at line number " + std::to_string( line_num )
+//								  + " (index " + std::to_string(line_index)  + ")\nLine:\n" );
+//	while ( idf[ beginning_of_line_index++ ] != '\n' ) line += idf[ beginning_of_line_index ];
+//    EnergyPlus::ShowWarningError( line );
+//}
 
 void IdfParser::eat_whitespace( std::string const & idf, size_t & index ) {
 	while ( index < idf.size() ) {
@@ -549,12 +585,12 @@ void IdfParser::eat_whitespace( std::string const & idf, size_t & index ) {
 			case ' ':
 			case '\r':
 			case '\t':
-				increment_both_index( index, index_into_cur_line );
+				increment_both_index( index, line_index );
 				continue;
 			case '\n':
-				increment_both_index( index, cur_line_num );
+				increment_both_index( index, line_num );
 				beginning_of_line_index = index;
-				index_into_cur_line = 0;
+				line_index = 0;
 				continue;
 			default:
 				return;
@@ -566,22 +602,22 @@ void IdfParser::eat_comment( std::string const & idf, size_t & index ) {
 	while ( true ) {
 		if ( index == idf.size() ) break;
 		if ( idf[ index ] == '\n' ) {
-			increment_both_index( index, cur_line_num );
-			index_into_cur_line = 0;
+			increment_both_index( index, line_num );
+			line_index = 0;
 			beginning_of_line_index = index;
 			break;
 		}
-		increment_both_index( index, index_into_cur_line );
+		increment_both_index( index, line_index );
 	}
 }
 
 IdfParser::Token IdfParser::look_ahead( std::string const & idf, size_t index ) {
 	size_t save_index = index;
-	size_t save_line_num = cur_line_num;
-	size_t save_line_index = index_into_cur_line;
+	size_t save_line_num = line_num;
+	size_t save_line_index = line_index;
 	Token token = next_token( idf, save_index );
-	cur_line_num = save_line_num;
-	index_into_cur_line = save_line_index;
+	line_num = save_line_num;
+	line_index = save_line_index;
 	return token;
 }
 
@@ -593,7 +629,7 @@ IdfParser::Token IdfParser::next_token( std::string const & idf, size_t & index 
 	}
 
 	char const c = idf[ index ];
-	increment_both_index( index, index_into_cur_line );
+	increment_both_index( index, line_index );
 	switch ( c ) {
 		case '!':
 			return Token::EXCLAMATION;
@@ -611,8 +647,45 @@ IdfParser::Token IdfParser::next_token( std::string const & idf, size_t & index 
 			}
 			break;
 	}
-	decrement_both_index( index, index_into_cur_line );
+	decrement_both_index( index, line_index );
 	return Token::NONE;
+}
+
+int State::print_errors() {
+	if ( warnings.size() ) EnergyPlus::ShowContinueError("Warnings: " + std::to_string(errors.size()));
+	for ( auto const & s: warnings ) EnergyPlus::ShowContinueError( s );
+	if ( errors.size() ) EnergyPlus::ShowWarningError("Errors: " + std::to_string(errors.size()));
+	for ( auto const & s : errors ) EnergyPlus::ShowWarningError( s );
+	return static_cast<int> ( errors.size() + warnings.size() );
+}
+
+void State::handle_error( Error err, double val, size_t line_num, size_t line_index ) {
+	std::string err_str = "Validation: In object " + cur_obj_name + ", value " + val;
+	switch ( err ) {
+		case Error::MIN:
+			errors.push_back( err_str + " is less than the minimum");
+		case Error::EXCLUSIVE_MIN:
+			errors.push_back( err_str + " is less than or equal to the minimum");
+		case Error::MAX:
+			errors.push_back( err_str + " is greater than the maximum");
+		case Error::EXCLUSIVE_MAX:
+			errors.push_back( err_str + " is great than or equal to the maximum");
+
+	}
+}
+
+void State::add_error( std::string err, double val, unsigned line_num, unsigned line_index ) {
+	std::string str = "Value \"" + std::to_string( val ) + "\" parsed at line " + std::to_string( line_num )
+	                  + " (index " + std::to_string( line_index ) + ")";
+	if ( err == "max" ) {
+		errors.push_back( str + " exceeds maximum" );
+	} else if ( err == "exmax" ) {
+		errors.push_back( str + " exceeds or equals exclusive maximum" );
+	} else if ( err == "min" ) {
+		errors.push_back( str + " is less than the minimum" );
+	} else if ( err == "exmin" ) {
+		errors.push_back( str + " is less than or equal to the exclusive minimum" );
+	}
 }
 
 void State::initialize( json const * parsed_schema ) {
@@ -775,7 +848,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 	}
 }
 
-void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
+void State::validate( json & parsed, size_t line_num, size_t line_index ) {
 	auto const * loc = stack.back();
 
 	if ( loc->find( "enum" ) != loc->end() ) {
@@ -790,8 +863,9 @@ void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
 			}
 			if ( i == enum_array_size ) {
 				u64toa( line_num, s );
-				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s
-				                  + ": \"" + parsed_string + "\" was not found in the enum" );
+				u64toa( line_index, s2 );
+				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s + " (index " + s2 + "): \""
+				                  + parsed_string + "\" was not found in the enum" );
 			}
 		} else {
 			int const parsed_int = parsed.get < int >();
@@ -802,8 +876,10 @@ void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
 			if ( i == enum_array_size ) {
 				i64toa( parsed_int, s );
 				u64toa( line_num, s2 );
-				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s
-				                  + ": \"" + s2 + "\" was not found in the enum" );
+				char s3 [ 129 ];
+				u64toa( line_index, s3 );
+				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s2 + " (index " + s3 +
+				                  + "): \"" + s + "\" was not found in the enum" );
 			}
 		}
 	} else if ( parsed.is_number() ) {
@@ -816,18 +892,18 @@ void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
 		if ( found_min != loc->end() ) {
 			double const min_val = found_min->get < double >();
 			if ( loc->find( "exclusiveMinimum" ) != loc->end() && val <= min_val ) {
-				add_error( "exmin", val, line_num, prev_line_index + prev_key_len );
+				handle_error( Error::EXCLUSIVE_MIN, val, line_num, line_index );
 			} else if ( val < min_val ) {
-				add_error( "min", val, line_num, prev_line_index + prev_key_len );
+				handle_error( Error::MIN, val, line_num, line_index );
 			}
 		}
 		auto const found_max = loc->find( "maximum" );
 		if ( found_max != loc->end() ) {
 			double const max_val = found_max->get < double >();
 			if ( loc->find( "exclusiveMaximum" ) != loc->end() && val >= max_val ) {
-				add_error( "exmax", val, line_num, prev_line_index + prev_key_len );
+				handle_error( Error::EXCLUSIVE_MAX, val );
 			} else if ( val > max_val ) {
-				add_error( "max", val, line_num, prev_line_index + prev_key_len );
+				handle_error( Error::MAX, val );
 			}
 		}
 		auto const found_type = loc->find( "type" );
@@ -921,6 +997,7 @@ namespace EnergyPlus {
 // Needed for unit tests, should not be normally called.
 	void
 	InputProcessor::clear_state() {
+		idf_parser.clear_state();
 		state.errors.clear();
 		state.warnings.clear();
 		jdf.clear();
@@ -1024,7 +1101,7 @@ namespace EnergyPlus {
 		delete[] memblock;
 		InputProcessor::idf_parser.initialize(InputProcessor::schema);
 		InputProcessor::state.initialize( & InputProcessor::schema );
-		json::parser_callback_t cb = [](int depth, json::parse_event_t event, json &parsed, unsigned line_num, unsigned line_index) -> bool {
+		json::parser_callback_t cb = [](int depth, json::parse_event_t event, json &parsed, size_t line_num, size_t line_index) -> bool {
 			InputProcessor::state.traverse(event, parsed, line_num, line_index);
 			return true;
 		};

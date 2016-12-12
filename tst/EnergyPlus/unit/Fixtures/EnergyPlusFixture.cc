@@ -582,7 +582,8 @@ namespace EnergyPlus {
 		InputProcessor::InitializeCacheMap();
 		InputProcessor::InitFiles();
 		SimulationManager::PostIPProcessing();
-		InputProcessor::state.print_errors();
+		// do we want to print errors here?
+//		InputProcessor::state.print_errors();
 
 		int MaxArgs = 0;
 		int MaxAlpha = 0;

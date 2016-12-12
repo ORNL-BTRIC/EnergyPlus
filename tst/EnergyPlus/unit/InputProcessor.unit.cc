@@ -974,6 +974,48 @@ namespace EnergyPlus {
 	}
 
 
+	TEST_F(InputProcessorFixture, test_line_numbers) {
+		std::string const idf(delimited_string(
+				{
+						"BuildingSurface:Detailed,",
+						"Zn009:Flr001,            !- Name",
+						"    1337,                   !- Surface Type",
+						"    FLOOR38,                 !- Construction Name",
+						"    SCWINDOW,                !- Zone Name",
+						"    Surface,                 !- Outside Boundary Condition",
+						"    Zn009:Flr001,            !- Outside Boundary Condition Object",
+						"    NotEnoughSunExposure,    !- Sun Exposure",
+						"    NoWind,                  !- Wind Exposure",
+						"    1.000000,                !- View Factor to Ground",
+						"    4,                       !- Number of Vertices",
+						"    10.00000,0.000000,0,  !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,  !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,  !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;  !- X,Y,Z ==> Vertex 4 {m}",
+						"",
+						"BuildingSurface:Detailed,",
+						"Building Surface Name,            !- Name",
+						"    Floor,                   !- Surface Type",
+						"    FLOOR38,                 !- Construction Name",
+						"    SCWINDOW,                !- Zone Name",
+						"    Surface,                 !- Outside Boundary Condition",
+						"    Zn009:Flr001,            !- Outside Boundary Condition Object",
+						"    NoSun,                   !- Sun Exposure",
+						"    Hurricanes,                  !- Wind Exposure",
+						"    1.000000,                !- View Factor to Ground",
+						"    4,                       !- Number of Vertices",
+						"    10.00000,TheBestNumber,0,  !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,  !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,  !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;  !- X,Y,Z ==> Vertex 4 {m}"
+				}));
+
+		ASSERT_TRUE( process_idf( idf ) );
+		InputProcessor::state.print_errors();
+		compare_err_stream( "random string", true );
+	}
+
+
 	TEST_F(InputProcessorFixture, parse_idf_extensibles_two_objects) {
 		std::string const idf(delimited_string(
 				{
