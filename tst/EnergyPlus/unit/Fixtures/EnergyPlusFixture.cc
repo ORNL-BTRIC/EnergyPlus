@@ -556,7 +556,7 @@ namespace EnergyPlus {
 
 
 	bool EnergyPlusFixture::process_idf( std::string const & idf_snippet, bool EP_UNUSED( use_assertions ), bool EP_UNUSED( use_idd_cache ) ) {
-		InputProcessor::jdf = InputProcessor::idf_parser.decode(idf_snippet, InputProcessor::schema);
+		InputProcessor::jdf = InputProcessor::idf_parser.decode(idf_snippet, InputProcessor::schema, call_back);
 
 		if (InputProcessor::jdf.find("Building") == InputProcessor::jdf.end()) {
 			InputProcessor::jdf["Building"] = {

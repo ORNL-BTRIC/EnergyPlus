@@ -145,14 +145,14 @@ namespace EnergyPlus {
 			return idfParser.next_token( idf, index );
 		}
 
-		json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema ) {
+		json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb ) {
 			IdfParser idfParser;
-			return idfParser.parse_idf( idf, index, success, schema );
+			return idfParser.parse_idf( idf, index, success, schema, cb );
 		}
 
-		json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc, json const & obj_loc ) {
+		json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc, json const & obj_loc, const json::parser_callback_t cb) {
 			IdfParser idfParser;
-			return idfParser.parse_object( idf, index, success, schema_loc, obj_loc );
+			return idfParser.parse_object( idf, index, success, schema_loc, obj_loc, cb );
 		}
 	};
 

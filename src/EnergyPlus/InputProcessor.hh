@@ -88,9 +88,9 @@ using json = nlohmann::json;
 
 class IdfParser {
 public:
-	json decode( std::string const & idf, json const & schema );
+	json decode( std::string const & idf, json const & schema, const json::parser_callback_t cb = nullptr );
 
-	json decode( std::string const & idf, json const & schema, bool & success );
+	json decode( std::string const & idf, json const & schema, bool & success, const json::parser_callback_t cb = nullptr );
 
 	std::string encode( json const & root, json const & schema );
 
@@ -98,10 +98,10 @@ public:
 		NONE = 0, END = 1, EXCLAMATION = 2, COMMA = 3, SEMICOLON = 4, STRING = 5, NUMBER = 6
 	};
 
-	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema );
+	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb);
 
 	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
-								json const & obj_loc );
+								json const & obj_loc, const json::parser_callback_t cb );
 
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
@@ -134,11 +134,10 @@ public:
 
 private:
 	friend class InputProcessorFixture;
-
-	size_t cur_line_num = 1;
-	size_t index_into_cur_line = 0;
-	size_t beginning_of_line_index = 0;
+	int depth = 0;
+	size_t line_num = 1, line_index = 0;
 	char s[ 129 ];
+	char s2[ 129 ];
 };
 
 class State {
@@ -170,8 +169,6 @@ private:
 	std::unordered_map < std::string, bool > obj_required;
 	std::unordered_map < std::string, bool > extensible_required;
 	std::unordered_map < std::string, bool > root_required;
-	// this design decision was made because
-	// the choice was between sorting a vector for binary searching or log time object lookup in a map
 	std::string cur_obj_name = "";
 
 	unsigned prev_line_index = 0;
