@@ -217,7 +217,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			if ( converted.first ) {
 				obj_name = converted.second;
 			} else {
-				print_out_line_error( idf, false );
+				handle_error( ErrorType::ObjNotFound );
 				while ( token != Token::SEMICOLON && token != Token::END ) token = next_token( idf, index );
 				continue;
 			}
@@ -235,7 +235,9 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 			}
-			if ( !success ) print_out_line_error( idf, true );
+			if ( !success ) {
+				handle_error( ErrorType::ExtraField );
+			}
 			u64toa( root[ obj_name ].size() + 1, s );
 			std::string name = obj_name + " " + s;
 			if ( !obj.is_null() ) {
@@ -622,14 +624,17 @@ void IdfParser::decrement_both_index( size_t & index, size_t & line_index ) {
 	line_index--;
 }
 
-void IdfParser::print_out_line_error( std::string const & idf, bool obj_found ) {
-	std::string line;
-	if ( obj_found ) EnergyPlus::ShowWarningError( "error: \"extra field(s)\" " );
-	else EnergyPlus::ShowWarningError( "error: \"obj not found in schema\" " );
-	EnergyPlus::ShowWarningError( "at line number " + std::to_string( line_num )
-								  + " (index " + std::to_string(line_index)  + ")\nLine:\n" );
-//	while ( idf[ beginning_of_line_index++ ] != '\n' ) line += idf[ beginning_of_line_index ];
-	EnergyPlus::ShowWarningError( line );
+void IdfParser::handle_error(ErrorType err) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = " at line" + std::string(s) + " (index " + s2 + ")\n";
+
+	switch (err) {
+		case ErrorType::ExtraField:
+			EnergyPlus::ShowWarningError( "IdfParser: extra field(s)" + err_str );
+		case ErrorType::ObjNotFound:
+			EnergyPlus::ShowWarningError( "IdfParser: object not found in schema"  + err_str );
+	}
 }
 
 void IdfParser::eat_whitespace( std::string const & idf, size_t & index ) {
@@ -712,17 +717,85 @@ void State::initialize( json const * parsed_schema ) {
 	for ( auto & s : loc ) root_required.emplace( s.get < std::string >(), false );
 }
 
-void State::add_error( ErrorType err, double val, unsigned line_num, unsigned line_index ) {
-	std::string str = "Out of Range: Value \"" + std::to_string( val ) + "\" parsed at line " +
-					  std::to_string( line_num ) + " (index " + std::to_string( line_index ) + ")";
-	if ( err == ErrorType::Maximum ) {
-		errors.push_back( str + " exceeds maximum" );
-	} else if ( err == ErrorType::ExclusiveMaximum ) {
-		errors.push_back( str + " exceeds or equals exclusive maximum" );
-	} else if ( err == ErrorType::Minimum ) {
-		errors.push_back( str + " is less than the minimum" );
-	} else if ( err == ErrorType::ExclusiveMinimum ) {
-		errors.push_back( str + " is less than or equal to the exclusive minimum" );
+void State::handle_error( ErrorType err, size_t line_num, size_t line_index ) {
+	u64toa(line_num, s);
+	u64toa(line_index, s2);
+	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
+	switch (err) {
+		case ErrorType::ParametricPreproc:
+			errors.push_back(err_str + " You must run Parametric Preprocessor");
+			break;
+		case ErrorType::ExpandObj:
+			errors.push_back(err_str + " You must run the ExpandObjects program");
+			break;
+		case ErrorType::MinProperties:
+			errors.push_back(err_str + " Minimum properties was not met");
+			break;
+		case ErrorType::MaxProperties:
+			errors.push_back(err_str + " Maximum properties was exceeded");
+			break;
+		case ErrorType::AnyOf:
+			errors.push_back(err_str + " A type of string was not found in the anyOf");
+			break;
+		default:
+			errors.push_back(err_str + " handle_error() was called with the wrong arguments");
+	}
+}
+
+void State::handle_error( ErrorType err, double val, size_t line_num, size_t line_index ) {
+	u64toa(line_num, s);
+	u64toa(line_index, s2);
+	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
+	dtoa(val, s);
+	switch (err) {
+		case ErrorType::Minimum:
+			errors.push_back(err_str + " Out of range value " + s + " is less than the minimum");
+			break;
+		case ErrorType::ExclusiveMin:
+			errors.push_back(err_str + " Out of range value " + s + " is less than or equal to the minimum");
+			break;
+		case ErrorType::Maximum:
+			errors.push_back(err_str + " Out of range value " + s + " is greater than the maximum");
+			break;
+		case ErrorType::ExclusiveMax:
+			errors.push_back(err_str + " Out of range value " + s + " is great than or equal to the maximum");
+			break;
+		case ErrorType::EnumNum:
+			errors.push_back(err_str + " " + s + " is not in the enum of possible values for this field");
+			break;
+		default:
+			errors.push_back(err_str + " handle_error was called with the wrong arguments");
+	}
+}
+
+void State::handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str ) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
+	switch ( err ) {
+		case ErrorType::KeyNotFound:
+			errors.push_back( err_str + " Key " + str + " not found in schema" );
+			break;
+		case ErrorType::ReqExtension:
+			errors.push_back( err_str + " Required extensible field " + str + " was not provided" );
+			break;
+		case ErrorType::ReqField:
+			errors.push_back( err_str + " Required field " + str + " was not provided" );
+			break;
+		case ErrorType::ReqObj:
+			errors.push_back( "Required object \"" + str + "\" was not provided in the input file" );
+			break;
+		case ErrorType::EnumStr:
+			errors.push_back( err_str + " " + str + " is not in the enum of possible values for this field" );
+			break;
+		case ErrorType::TypeStr:
+			errors.push_back( err_str + " A string was parsed here, but the schema calls for " + str );
+			break;
+		case ErrorType::TypeNum:
+			errors.push_back( err_str + " A number was parsed here, but the schema calls for " + str );
+			break;
+		default:
+			errors.push_back( err_str + " handle_error() was called with the incorrect arguments for this error");
 	}
 }
 
@@ -777,11 +850,9 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 				cur_obj_count = 0;
 				need_new_object_name = false;
 				if ( cur_obj_name.find( "Parametric:" ) != std::string::npos ) {
-					u64toa( line_num + 1, s );
-					errors.push_back( "You must run Parametric Preprocessor for \"" + cur_obj_name + "\" at line " + s );
+					handle_error( ErrorType::ParametricPreproc, line_num, line_index );
 				} else if ( cur_obj_name.find( "Template" ) != std::string::npos ) {
-					u64toa( line_num + 1, s );
-					errors.push_back( "You must run the ExpandObjects program for \"" + cur_obj_name + "\" at line " + s );
+					handle_error( ErrorType::ExpandObj, line_num, line_index );
 				}
 			}
 
@@ -789,10 +860,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 				if ( stack.back()->find( key ) != stack.back()->end() ) {
 					stack.push_back( & stack.back()->at( key ) );
 				} else {
-					u64toa( line_num, s );
-					u64toa( line_index, s2 );
-					errors.push_back( "Key \"" + key + "\" in object \"" + cur_obj_name + "\" at line "
-									  + s2 + " (index " + s + ") not found in schema" );
+					handle_error( ErrorType::KeyNotFound, line_num, line_index, key );
 					does_key_exist = false;
 				}
 			}
@@ -839,11 +907,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 			if ( is_in_extensibles ) {
 				for ( auto & it : extensible_required ) {
 					if ( !it.second ) {
-						u64toa( line_num, s );
-						u64toa( line_index, s2 );
-						errors.push_back(
-						"Required extensible field \"" + it.first + "\" in object \"" + cur_obj_name
-						+ "\" ending at line " + s2 + " (index " + s + ") was not provided" );
+						handle_error( ErrorType::ReqExtension, line_num, line_index, it.first );
 					}
 					it.second = false;
 				}
@@ -851,11 +915,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 				cur_obj_count++;
 				for ( auto & it : obj_required ) {
 					if ( !it.second ) {
-						u64toa( line_num, s );
-						u64toa( line_index, s2 );
-						errors.push_back(
-						"Required field \"" + it.first + "\" in object \"" + cur_obj_name
-						+ "\" ending at line " + s2 + " (index " + s + ") was not provided" );
+						handle_error( ErrorType::ReqField, line_num, line_index, it.first );
 					}
 					it.second = false;
 				}
@@ -863,15 +923,11 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 				const auto * loc = stack.back();
 				if ( loc->find( "minProperties" ) != loc->end() &&
 					 cur_obj_count < loc->at( "minProperties" ).get < unsigned >() ) {
-					u64toa( line_num, s );
-					errors.push_back(
-					"minProperties for object \"" + cur_obj_name + "\" at line " + s + " was not met" );
+					handle_error( ErrorType::MinProperties, line_num, line_index );
 				}
 				if ( loc->find( "maxProperties" ) != loc->end() &&
 					 cur_obj_count > loc->at( "maxProperties" ).get < unsigned >() ) {
-					u64toa( line_num, s );
-					errors.push_back(
-					"maxProperties for object \"" + cur_obj_name + "\" at line " + s + " was exceeded" );
+					handle_error( ErrorType::MaxProperties, line_num, line_index );
 				}
 				obj_required.clear();
 				extensible_required.clear();
@@ -886,13 +942,13 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 	if ( !stack.size() ) {
 		for ( auto & it: root_required ) {
 			if ( !it.second ) {
-				errors.push_back( "Required object \"" + it.first + "\" was not provided in input file" );
+				handle_error( ErrorType::ReqObj, line_num, line_index, it.first );
 			}
 		}
 	}
 }
 
-void State::validate( json & parsed, unsigned line_num, unsigned EP_UNUSED( line_index ) ) {
+void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
 	auto const * loc = stack.back();
 
 	if ( loc->find( "enum" ) != loc->end() ) {
@@ -906,9 +962,7 @@ void State::validate( json & parsed, unsigned line_num, unsigned EP_UNUSED( line
 				if ( icompare( enum_string, parsed_string ) ) break;
 			}
 			if ( i == enum_array_size ) {
-				u64toa( line_num, s );
-				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s
-								  + ": \"" + parsed_string + "\" was not found in the enum" );
+				handle_error( ErrorType::EnumStr, line_num, line_index, parsed_string );
 			}
 		} else {
 			int const parsed_int = parsed.get < int >();
@@ -917,10 +971,7 @@ void State::validate( json & parsed, unsigned line_num, unsigned EP_UNUSED( line
 				if ( enum_int == parsed_int ) break;
 			}
 			if ( i == enum_array_size ) {
-				i64toa( parsed_int, s );
-				u64toa( line_num, s2 );
-				errors.push_back( "In object \"" + cur_obj_name + "\" at line " + s
-								  + ": \"" + s2 + "\" was not found in the enum" );
+				handle_error( ErrorType::EnumNum, parsed_int, line_num, line_index );
 			}
 		}
 	} else if ( parsed.is_number() ) {
@@ -933,27 +984,23 @@ void State::validate( json & parsed, unsigned line_num, unsigned EP_UNUSED( line
 		if ( found_min != loc->end() ) {
 			double const min_val = found_min->get < double >();
 			if ( loc->find( "exclusiveMinimum" ) != loc->end() && val <= min_val ) {
-				add_error( State::ErrorType::ExclusiveMinimum, val, line_num, prev_line_index + prev_key_len );
+				handle_error( ErrorType::ExclusiveMin, val, line_num, line_index );
 			} else if ( val < min_val ) {
-				add_error( State::ErrorType::Minimum, val, line_num, prev_line_index + prev_key_len );
+				handle_error( ErrorType::Minimum, val, line_num, line_index );
 			}
 		}
 		auto const found_max = loc->find( "maximum" );
 		if ( found_max != loc->end() ) {
 			double const max_val = found_max->get < double >();
 			if ( loc->find( "exclusiveMaximum" ) != loc->end() && val >= max_val ) {
-				add_error( State::ErrorType::ExclusiveMaximum, val, line_num, prev_line_index + prev_key_len );
+				handle_error( ErrorType::ExclusiveMax, val, line_num, line_index );
 			} else if ( val > max_val ) {
-				add_error( State::ErrorType::Maximum, val, line_num, prev_line_index + prev_key_len );
+				handle_error( ErrorType::Maximum, val, line_num, line_index );
 			}
 		}
 		auto const found_type = loc->find( "type" );
 		if ( found_type != loc->end() && found_type.value() != "number" ) {
-			dtoa( val, s );
-			u64toa( line_num, s2 );
-			warnings.push_back( "In object \"" + cur_obj_name + "\" at line " + s
-								+ ", type == " + loc->at( "type" ).get < std::string >()
-								+ " but parsed value = " + s2 );
+			handle_error( ErrorType::TypeNum, line_num, line_index, loc->at( "type " ).get < std::string >() );
 		}
 	} else if ( parsed.is_string() ) {
 		auto const found_anyOf = loc->find( "anyOf" );
@@ -962,20 +1009,20 @@ void State::validate( json & parsed, unsigned line_num, unsigned EP_UNUSED( line
 			for ( i = 0; i < found_anyOf->size(); i++ ) {
 				auto const & any_of_check = found_anyOf->at( i );
 				auto const found_type = any_of_check.find( "type" );
-				if ( found_type != any_of_check.end() && *found_type == "string" ) break;
+				if ( found_type != any_of_check.end() && *found_type == "string" ) {
+					break;
+				}
 			}
 			if ( i == found_anyOf->size() ) {
-				u64toa( line_num, s );
-				warnings.push_back( "type == string was not found in anyOf in object \"" + cur_obj_name
-									+ "\" at line " + s );
+				handle_error( ErrorType::AnyOf, line_num, line_index );
 			}
 			return;
 		}
 		auto const found_type = loc->find( "type" );
 		auto const & parsed_string = parsed.get< std::string >();
 		if ( found_type != loc->end() && *found_type != "string" && ! parsed_string.empty() ) {
-			u64toa( line_num, s );
-			errors.push_back( "In object \"" + cur_obj_name + "\", at line " + s + ": type needs to be string" );
+			std::string copy = *found_type; // this is bad
+			handle_error( ErrorType::TypeStr, line_num, line_index, copy );
 		}
 	}
 }

@@ -98,10 +98,15 @@ public:
 		NONE = 0, END = 1, EXCLAMATION = 2, COMMA = 3, SEMICOLON = 4, STRING = 5, NUMBER = 6
 	};
 
-	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb);
+	enum class ErrorType {
+		ExtraField,
+		ObjNotFound
+	};
+
+	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb = nullptr);
 
 	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
-								json const & obj_loc, const json::parser_callback_t cb );
+								json const & obj_loc, const json::parser_callback_t cb = nullptr );
 
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
@@ -113,7 +118,7 @@ public:
 
 	void eat_comment( std::string const & idf, size_t & index );
 
-	void print_out_line_error( std::string const & idf, bool obj_found );
+	void handle_error(ErrorType err);
 
 	void increment_both_index( size_t & index, size_t & line_index );
 
@@ -143,10 +148,9 @@ private:
 class State {
 public:
 	enum class ErrorType {
-		Maximum,
-		ExclusiveMaximum,
-		Minimum,
-		ExclusiveMinimum
+		ExclusiveMin = 0, Minimum = 1, ExclusiveMax = 2, Maximum = 3, ParametricPreproc = 4, ExpandObj = 5,
+		KeyNotFound = 6, ReqExtension = 7, ReqField = 8, ReqObj = 9, MinProperties = 10, MaxProperties = 11,
+		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16
 	};
 
 	void initialize( json const * parsed_schema );
@@ -155,9 +159,13 @@ public:
 
 	void validate( json & parsed, unsigned line_num, unsigned line_index );
 
-	void add_error( ErrorType err, double val, unsigned line_num, unsigned line_index );
-
 	int print_errors();
+
+	void handle_error( ErrorType err, size_t line_num, size_t line_index );
+
+	void handle_error( ErrorType err, double val, size_t line_num, size_t line_index );
+
+	void handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str );
 
 	std::vector < std::string > const & validation_errors();
 
@@ -169,17 +177,14 @@ private:
 	std::unordered_map < std::string, bool > obj_required;
 	std::unordered_map < std::string, bool > extensible_required;
 	std::unordered_map < std::string, bool > root_required;
-	std::string cur_obj_name = "";
+	char s[ 129 ], s2[ 129 ];
 
-	unsigned prev_line_index = 0;
-	unsigned prev_key_len = 0;
+	std::string cur_obj_name = "";
 	unsigned cur_obj_count = 0;
 	bool is_in_extensibles = false;
 	bool does_key_exist = true;
 	bool need_new_object_name = true;
 	json::parse_event_t last_seen_event = json::parse_event_t::object_start;
-	char s[ 129 ];
-	char s2[ 129 ];
 
 	std::vector < std::string > errors;
 	std::vector < std::string > warnings;
