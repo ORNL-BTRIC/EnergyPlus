@@ -123,7 +123,6 @@ json IdfParser::decode( std::string const & idf, json const & schema, bool & suc
 	}
 
 	size_t index = 0;
-	json null_json = json::object();
 	if ( cb ) {
 		cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 	}
@@ -199,7 +198,6 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 	json root;
 	Token token;
 	auto const & schema_properties = schema[ "properties" ];
-	json null_json = json::object();
 
 	while ( true ) {
 		token = look_ahead( idf, index );
@@ -248,7 +246,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 					if ( root[ obj_name ].find( name ) != root[ obj_name ].end() ) {
 						// hacky but needed to warn if there are duplicate names in parsed IDF
 						if ( obj_name != "RunPeriod" ) {
-							EnergyPlus::ShowWarningMessage("Duplicate name found. name: \"" + name + "\"");
+							handle_error(ErrorType::DuplicateName, name);
 						}
 					}
 				}
@@ -264,7 +262,6 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 json IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
 							  json const & legacy_idd, json const & schema_obj_loc, const json::parser_callback_t cb ) {
 	json root = json::object(), extensible = json::object(), array_of_extensions = json::array();
-	json null_json = json::object(), empty_str_json = std::string();
 
 	Token token;
 	size_t legacy_idd_index = 0, extensible_index = 0;
@@ -311,8 +308,8 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 					if ( extensible_index == 1 ) {
 						// first extensible means array_start token
 						json ext_json = "extensions"; // this is bad
-						cb ( depth, json::parse_event_t::key, ext_json, line_num, line_index );
-						cb ( depth++, json::parse_event_t::array_start, null_json, line_num, line_index );
+						cb( depth, json::parse_event_t::key, ext_json, line_num, line_index );
+						cb( depth++, json::parse_event_t::array_start, null_json, line_num, line_index );
 					}
 					if ( (ext_size && extensible_index % ext_size == 1) || ext_size == 1 ) {
 						cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
@@ -367,7 +364,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			extensible_index++;
 			if ( cb ) {
 				if ( extensible_index == 1 ) {
-					// first extensible == array_start token
+					// first extensible means array_start token
 					json ext_json = "extensions"; // this is bad
 					cb ( depth, json::parse_event_t::key, ext_json, line_num, line_index );
 					cb ( depth++, json::parse_event_t::array_start, null_json, line_num, line_index );
@@ -377,7 +374,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				}
 				json fn = field_name;
 				cb( depth, json::parse_event_t::key, fn, line_num, line_index );
-				cb( depth, json::parse_event_t::value, empty_str_json, line_num, line_index );
+				cb( depth, json::parse_event_t::value, extensible[ field_name ], line_num, line_index );
 			}
 			if ( extensible_index && extensible_index % size == 0 ) {
 				array_of_extensions.push_back( extensible );
@@ -394,17 +391,15 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				if ( field == "name" ) {
 					root[ field ] = parse_string( idf, index, success );
 				} else {
-					u64toa( line_num, s );
-					EnergyPlus::ShowWarningMessage( "Field " + field + " was not found at line " + s );
+					handle_error(ErrorType::FieldNotFound, field);
 				}
 			} else {
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
-				auto copy_val = val;
 				root[ field ] = std::move( val );
 				if ( cb ) {
 					json fn = field;
 					cb( depth, json::parse_event_t::key, fn, line_num, line_index );
-					cb( depth, json::parse_event_t::value, copy_val, line_num, line_index );
+					cb( depth, json::parse_event_t::value, root[ field ], line_num, line_index );
 				}
 			}
 			if ( !success ) return root;
@@ -631,9 +626,26 @@ void IdfParser::handle_error(ErrorType err) {
 
 	switch (err) {
 		case ErrorType::ExtraField:
-			EnergyPlus::ShowWarningError( "IdfParser: extra field(s)" + err_str );
+			EnergyPlus::ShowWarningError( "IdfParser: Extra field(s)" + err_str );
 		case ErrorType::ObjNotFound:
-			EnergyPlus::ShowWarningError( "IdfParser: object not found in schema"  + err_str );
+			EnergyPlus::ShowWarningError( "IdfParser: Object not found in schema"  + err_str );
+		default:
+			EnergyPlus::ShowWarningError( "IdfParser: The wrong handle_error() was called" );
+	}
+}
+
+void IdfParser::handle_error(ErrorType err, std::string const & str) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = " at line" + std::string(s) + " (index " + s2 + ")\n";
+
+	switch (err) {
+		case ErrorType::FieldNotFound:
+			EnergyPlus::ShowWarningError( "IdfParser: Field " +str + " not found" + err_str );
+		case ErrorType::DuplicateName:
+			EnergyPlus::ShowWarningError( "IdfParser: Duplicate name " + str + err_str );
+		default:
+			EnergyPlus::ShowWarningError( "IdfParser: The wrong handle_error() was called" );
 	}
 }
 
@@ -815,7 +827,7 @@ std::vector < std::string > const & State::validation_warnings() {
 	return warnings;
 }
 
-void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_num, unsigned line_index ) {
+void State::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index ) {
 	switch ( event ) {
 		case json::parse_event_t::object_start: {
 			if ( is_in_extensibles || stack.back()->find( "patternProperties" ) == stack.back()->end() ) {
@@ -844,7 +856,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 		case json::parse_event_t::key: {
 			std::string const & key = parsed;
 			prev_line_index = line_index;
-			prev_key_len = ( unsigned ) key.size() + 3;
+			prev_key_len = key.size() + 3;
 			if ( need_new_object_name ) {
 				cur_obj_name = key;
 				cur_obj_count = 0;
@@ -948,7 +960,7 @@ void State::traverse( json::parse_event_t & event, json & parsed, unsigned line_
 	}
 }
 
-void State::validate( json & parsed, unsigned line_num, unsigned line_index ) {
+void State::validate( json & parsed, size_t line_num, size_t line_index ) {
 	auto const * loc = stack.back();
 
 	if ( loc->find( "enum" ) != loc->end() ) {
@@ -1225,7 +1237,7 @@ namespace EnergyPlus {
 		delete[] memblock;
 
 		InputProcessor::state.initialize( & InputProcessor::schema );
-		json::parser_callback_t cb = []( int EP_UNUSED( depth ), json::parse_event_t event, json &parsed, unsigned line_num, unsigned line_index ) -> bool {
+		json::parser_callback_t cb = []( int EP_UNUSED( depth ), json::parse_event_t event, json &parsed, size_t line_num, size_t line_index ) -> bool {
 			InputProcessor::state.traverse( event, parsed, line_num, line_index );
 			return true;
 		};

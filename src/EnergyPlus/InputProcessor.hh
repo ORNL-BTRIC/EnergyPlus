@@ -100,7 +100,9 @@ public:
 
 	enum class ErrorType {
 		ExtraField,
-		ObjNotFound
+		ObjNotFound,
+		DuplicateName,
+		FieldNotFound
 	};
 
 	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema, const json::parser_callback_t cb = nullptr);
@@ -119,6 +121,8 @@ public:
 	void eat_comment( std::string const & idf, size_t & index );
 
 	void handle_error(ErrorType err);
+
+	void handle_error(ErrorType err, std::string const & str);
 
 	void increment_both_index( size_t & index, size_t & line_index );
 
@@ -139,6 +143,7 @@ public:
 
 private:
 	friend class InputProcessorFixture;
+	json null_json = json::object(), empty_str_json = std::string();
 	int depth = 0;
 	size_t line_num = 1, line_index = 0;
 	char s[ 129 ];
@@ -155,9 +160,9 @@ public:
 
 	void initialize( json const * parsed_schema );
 
-	void traverse( json::parse_event_t & event, json & parsed, unsigned line_num, unsigned line_index );
+	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index );
 
-	void validate( json & parsed, unsigned line_num, unsigned line_index );
+	void validate( json & parsed, size_t line_num, size_t line_index );
 
 	int print_errors();
 
@@ -179,15 +184,14 @@ private:
 	std::unordered_map < std::string, bool > root_required;
 	char s[ 129 ], s2[ 129 ];
 
+	size_t prev_key_len = 0, prev_line_index = 0, cur_obj_count = 0;
 	std::string cur_obj_name = "";
-	unsigned cur_obj_count = 0;
 	bool is_in_extensibles = false;
 	bool does_key_exist = true;
 	bool need_new_object_name = true;
 	json::parse_event_t last_seen_event = json::parse_event_t::object_start;
 
-	std::vector < std::string > errors;
-	std::vector < std::string > warnings;
+	std::vector < std::string > errors, warnings;
 };
 
 namespace EnergyPlus {

@@ -193,13 +193,9 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_BadFuelType ) {
 
 	std::string const idf_objects = delimited_string({
 		"Version,8.5;",
-
 		"Zone,Zone1;",
-
 		"ScheduleTypeLimits,SchType1,0.0,1.0,Continuous,Dimensionless;",
-
 		"Schedule:Constant,Schedule1,,1.0;",
-
 		"OtherEquipment,",
 		"  OtherEq1,",
 		"  Water,",
@@ -214,7 +210,6 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_BadFuelType ) {
 	} );
 
 	ASSERT_TRUE(process_idf(idf_objects));
-	EXPECT_FALSE(has_err_output());
 
 	bool ErrorsFound(false);
 
@@ -227,14 +222,17 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_BadFuelType ) {
 
 	ASSERT_THROW( InternalHeatGains::GetInternalHeatGainsInput(), std::runtime_error );
 
-	std::string const error_string = delimited_string({
-		"   ** Warning ** ProcessScheduleInput: Schedule:Constant=\"SCHEDULE1\", Blank schedule_type_limits_name input -- will not be validated.",
-		"   ** Severe  ** GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1",
-		"   **  Fatal  ** GetInternalHeatGains: Errors found in Getting Internal Gains Input, Program Stopped",
-		"   ...Summary of Errors that led to program termination:",
-		"   ..... Reference severe error count=1",
-		"   ..... Last severe error=GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1"
-	});
+	std::string const error_string = delimited_string(
+			{
+					"   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object OtherEquipment at "
+							"line number 7 (index 7) - Water is not in the enum of possible values for this field",
+					"   ** Warning ** ProcessScheduleInput: Schedule:Constant=\"SCHEDULE1\", Blank schedule_type_limits_name input -- will not be validated.",
+					"   ** Severe  ** GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1",
+					"   **  Fatal  ** GetInternalHeatGains: Errors found in Getting Internal Gains Input, Program Stopped",
+					"   ...Summary of Errors that led to program termination:",
+					"   ..... Reference severe error count=2",
+					"   ..... Last severe error=GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1"
+			});
 
 	EXPECT_TRUE( compare_err_stream( error_string, true ) );
 

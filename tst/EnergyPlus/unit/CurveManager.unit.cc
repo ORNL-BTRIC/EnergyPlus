@@ -235,14 +235,15 @@ TEST_F( EnergyPlusFixture, Tables_TwoIndVar_Malformed ) {
 
 	EXPECT_EQ( 1, CurveManager::NumCurves );
 
-	std::string const error_string = delimited_string( {
-		"   ** Severe  ** GetCurveInput: For Table:TwoIndependentVariables: AWHP_RCAP",
-		"   **   ~~~   ** The number of data entries must be evenly divisable by 3. Number of data entries = 134",
-	} );
-
-	EXPECT_TRUE( compare_err_stream( error_string, true ) );
-
+	EXPECT_TRUE( compare_err_stream("   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object "
+			                                "Table:TwoIndependentVariables at line number 150 (index 5) - Required extensible field "
+			                                "output_value_1 was not provided\n   ** Severe  ** GetCurveInput: For "
+			                                "Table:TwoIndependentVariables: AWHP_RCAP\n   **   ~~~   ** The number of data entries "
+			                                "must be evenly divisable by 3. Number of data entries = 134\n",
+	                                true ) );
 }
+
+
 TEST_F( EnergyPlusFixture, Tables_OneIndependentVariable_UserDidNotEnterMinMaxXY ) {
 	std::string const idf_objects = delimited_string( {
 		"Version,8.5;",

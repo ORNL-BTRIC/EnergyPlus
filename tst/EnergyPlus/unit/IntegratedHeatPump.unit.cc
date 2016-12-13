@@ -1032,7 +1032,7 @@ namespace EnergyPlus {
 			"    ASIHP1,    				 !- Heating DX Coil Name",
 			"    CoilSystem:IntegratedHeatPump:AirSource,  !- Coolinng Coil Object Type",
 			"    ASIHP1,    				 !- Cooling DX Coil Name",
-			"    Coil:Heating:Gas,        !- Supplemental Heating Coil Object Type",
+			"    Coil:Heating:Gas,        !- Supplemental Heating Coil Object Type", // error, it isn't in the enum
 			"    Heat Pump DX Supp Heating Coil 1,  !- Supplemental Heating Coil Name",
 			"    50,                      !- Maximum Supply Air Temperature from Supplemental Heater {C}",
 			"    21,                      !- Maximum Outdoor Dry-Bulb Temperature for Supplemental Heater Operation {C}",
@@ -1579,7 +1579,10 @@ namespace EnergyPlus {
 			ASSERT_TRUE( process_idf( idf_objects ) );
 
 			EXPECT_NO_THROW( GetIHPInput() );
-			compare_err_stream("");
+			compare_err_stream("   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object "
+					                   "AirLoopHVAC:UnitaryHeatPump:AirToAir at line number 771 (index 20) - Coil:Heating:Gas "
+					                   "is not in the enum of possible values for this field\n",
+			                   true);
 
 		}
 

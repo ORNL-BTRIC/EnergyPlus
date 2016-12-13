@@ -68,9 +68,6 @@
 
 #include "Fixtures/InputProcessorFixture.hh"
 
-#include <tuple>
-#include <map>
-
 namespace EnergyPlus {
 
 	TEST_F( InputProcessorFixture, decode_encode_1 ) {
@@ -1132,6 +1129,54 @@ namespace EnergyPlus {
 	}
 
 
+	TEST_F(InputProcessorFixture, test_line_numbers) {
+		std::string const idf(delimited_string(
+				{
+						"BuildingSurface:Detailed,",
+						"Zn009:Flr001,                !- Name",
+						"    1337,                    !- Surface Type **(line 3)",
+						"    FLOOR38,                 !- Construction Name",
+						"    SCWINDOW,                !- Zone Name",
+						"    Surface,                 !- Outside Boundary Condition",
+						"    Zn009:Flr001,            !- Outside Boundary Condition Object",
+						"    NotEnoughSunExposure,    !- Sun Exposure **(line 8)",
+						"    NoWind,                  !- Wind Exposure",
+						"    1.000000,                !- View Factor to Ground",
+						"    4,                       !- Number of Vertices",
+						"    10.00000,0.000000,0,     !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,     !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,     !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;     !- X,Y,Z ==> Vertex 4 {m}",
+						"! comment",
+						"! another comment",
+						"! yet another comment",
+						"BuildingSurface:Detailed,",
+						"Building Surface Name,          !- Name",
+						"    Floor,                      !- Surface Type",
+						"    FLOOR38,                    !- Construction Name",
+						"    SCWINDOW,                   !- Zone Name",
+						"    SurfacePro,                 !- Outside Boundary Condition **(line 24)",
+						"    Zn009:Flr001,               !- Outside Boundary Condition Object",
+						"    NoSun,                      !- Sun Exposure",
+						"    Hurricanes,                 !- Wind Exposure **(line 27)",
+						"    1.000000,                   !- View Factor to Ground",
+						"    4,                          !- Number of Vertices",
+						"    10.00000,5,0,               !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,        !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,        !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;        !- X,Y,Z ==> Vertex 4 {m}"
+				}));
+
+		ASSERT_TRUE( process_idf( idf ) );
+		compare_err_stream( "   ** Severe  ** Number of validation errors: 4\n"
+				                    "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 3 (index 8) - 1337 is not in the enum of possible values for this field\n"
+				                    "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 8 (index 24) - NotEnoughSunExposure is not in the enum of possible values for this field\n"
+				                    "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 24 (index 14) - SurfacePro is not in the enum of possible values for this field\n"
+				                    "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 27 (index 14) - Hurricanes is not in the enum of possible values for this field\n",
+		                    true );
+	}
+
+
 	TEST_F(InputProcessorFixture, validate_jdf_parametric_template) {
 		std::string const idf(delimited_string(
 				{
@@ -1145,7 +1190,7 @@ namespace EnergyPlus {
 					"$depth = SQRT($bldgArea / $aspectRatio),  !- Parametric Logic Line 6",
 					"$width = $depth * $aspectRatio,  !- Parametric Logic Line 7",
 					"$height = 4.0;           !- Parametric Logic Line 8"
-					"",
+					" ! comment",
 					"HVACTemplate:Thermostat,",
 					"All Zones,               !- Name",
 					"Htg-SetP-Sch,            !- Heating Setpoint Schedule Name",
@@ -1154,15 +1199,10 @@ namespace EnergyPlus {
 					";                        !- Constant Cooling Setpoint {C}"
 				}));
 		ASSERT_TRUE( process_idf( idf ) );
-		json & jdf = getJDF();
-		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size() + warnings.size(), 2ul);
-		if (errors.size() >= 2) {
-			EXPECT_NE(errors[0].find("You must run the ExpandObjects program for \"HVACTemplate:Thermostat\" at line"), std::string::npos);
-			EXPECT_NE(errors[1].find("You must run Parametric Preprocessor for \"Parametric:Logic\" at line"), std::string::npos);
-		}
+		compare_err_stream( "   ** Severe  ** Number of validation errors: 2\n   **   ~~~   ** "
+				                    "Validation: In object Parametric:Logic at line number 1 (index 16) - You must run Parametric Preprocessor\n"
+				                    "   **   ~~~   ** Validation: In object HVACTemplate:Thermostat at line number 11 (index 23) - You must run the ExpandObjects program\n",
+		                    true );
 	}
 
 
@@ -1233,14 +1273,16 @@ namespace EnergyPlus {
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size(), 2ul);
-		EXPECT_EQ(warnings.size(), 0ul);
-		if (errors.size() >= 2) {
-			EXPECT_NE(errors[0].find("Key \"non_existent_field_1\" in object \"BuildingSurface:Detailed\" at line"), std::string::npos);
-			EXPECT_NE(errors[1].find("Key \"non_existent_field_2\" in object \"BuildingSurface:Detailed\" at line"), std::string::npos);
-//            EXPECT_NE(errors[2].find("Required object \"GlobalGeometryRules\" was not provided"), std::string::npos);
-//            EXPECT_NE(errors[3].find("Required object \"Building\" was not provided"), std::string::npos);
+		for ( auto const & s : errors ) {
+			ShowContinueError( s );
 		}
+		for ( auto const & s : warnings ) {
+			ShowContinueError( s );
+		}
+		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 23 (index 0)"
+				                    " - Key non_existent_field_1 not found in schema\n   **   ~~~   ** Validation: In object "
+				                    "BuildingSurface:Detailed at line number 24 (index 0) - Key non_existent_field_2 not found in schema\n",
+		                    true );
 	}
 
 	TEST_F(InputProcessorFixture, required_fields_required_extensibles_and_missing_enum) {
@@ -1312,17 +1354,20 @@ namespace EnergyPlus {
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size(), 4ul);
-		EXPECT_EQ(warnings.size(), 0ul);
-		if (errors.size() >= 4) {
-			EXPECT_NE(errors[0].find("Required extensible field \"vertex_y_coordinate\" in object \"BuildingSurface:Detailed\" ending at line"), std::string::npos);
-			EXPECT_NE(errors[1].find("Required extensible field \"vertex_x_coordinate\" in object \"BuildingSurface:Detailed\" ending at line"), std::string::npos);
-			EXPECT_NE(errors[2].find("In object \"BuildingSurface:Detailed\" at line"), std::string::npos);
-			EXPECT_NE(errors[2].find("value that doesn't exist in the enum\" was not found in the enum"), std::string::npos);
-			EXPECT_NE(errors[3].find("Required field \"construction_name\" in object \"BuildingSurface:Detailed\" ending at line"), std::string::npos);
-//            EXPECT_NE(errors[4].find("Required object \"GlobalGeometryRules\" was not provided"), std::string::npos);
-//            EXPECT_NE(errors[5].find("Required object \"Building\" was not provided"), std::string::npos);
+		for ( auto const & s : errors ) {
+			ShowContinueError( s );
 		}
+		for ( auto const & s : warnings ) {
+			ShowContinueError( s );
+		}
+		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 18 (index 0)"
+				                    " - Required extensible field vertex_y_coordinate was not provided\n   **   ~~~   **"
+				                    " Validation: In object BuildingSurface:Detailed at line number 18 (index 0) - "
+				                    "Required extensible field vertex_x_coordinate was not provided\n   **   ~~~   ** Validation:"
+				                    " In object BuildingSurface:Detailed at line number 29 (index 0) - value that doesn't exist in the enum"
+				                    " is not in the enum of possible values for this field\n   **   ~~~   ** Validation: "
+				                    "In object BuildingSurface:Detailed at line number 34 (index 0) - Required field construction_name was not provided\n",
+		                    true );
 	}
 
 
@@ -1340,12 +1385,12 @@ namespace EnergyPlus {
 							{"outside_boundary_condition_object", "Zn009:Flr001"},
 							{"sun_exposure", "NoSun"},
 							{"wind_exposure", "NoWind"},
-							{"view_factor_to_ground", -987.654321},
-							{"number_of_vertices", -98765.4321},
+							{"view_factor_to_ground", -987.654321}, // error
+							{"number_of_vertices", -98765.4321}, // error
 							{"extensions",
 								{
 									{
-										{"vertex_x_coordinate", "definitely not a number"},
+										{"vertex_x_coordinate", "definitely not a number"}, // expects a number here, error
 										{"vertex_y_coordinate", 10},
 										{"vertex_z_coordinate", 0}
 									}
@@ -1362,11 +1407,11 @@ namespace EnergyPlus {
 						{
 							{"north_axis", 0.0000},
 							{"terrain", "City"},
-							{"loads_convergence_tolerance_value", 0.0},
+							{"loads_convergence_tolerance_value", 0.0}, // exclusive minimum 0, error
 							{"temperature_convergence_tolerance_value", 0.2000},
 							{"solar_distribution", "FullInteriorAndExterior"},
 							{"maximum_number_of_warmup_days", 20},
-							{"minimum_number_of_warmup_days", 0}
+							{"minimum_number_of_warmup_days", -123.456} // below the exclusive minimum of 0, error
 						},
 					},
 				}
@@ -1390,21 +1435,21 @@ namespace EnergyPlus {
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size(), 5ul);
-		EXPECT_EQ(warnings.size(), 0ul);
-		if (errors.size() >= 5) {
-			EXPECT_NE(errors[0].find("Value \"0.000000\" parsed at line"), std::string::npos);
-			EXPECT_NE(errors[0].find("is less than or equal to the exclusive minimum"), std::string::npos);
-			EXPECT_NE(errors[1].find("Value \"0.000000\" parsed at line"), std::string::npos);
-			EXPECT_NE(errors[1].find("is less than or equal to the exclusive minimum"), std::string::npos);
-			EXPECT_NE(errors[2].find("In object \"BuildingSurface:Detailed\", at line"), std::string::npos);
-			EXPECT_NE(errors[2].find("type needs to be string"), std::string::npos);
-			EXPECT_NE(errors[3].find("Value \"-98765.432100\" parsed at line"), std::string::npos);
-			EXPECT_NE(errors[3].find("less than the minimum"), std::string::npos);
-			EXPECT_NE(errors[4].find("Value \"-987.654321\" parsed at line"), std::string::npos);
-			EXPECT_NE(errors[4].find("less than the minimum"), std::string::npos);
-//			EXPECT_NE(errors[5].find("Required object \"GlobalGeometryRules\" was not provided"), std::string::npos);
+		for ( auto const & s : errors ) {
+			ShowContinueError( s );
 		}
+		for ( auto const & s : warnings ) {
+			ShowContinueError( s );
+		}
+		compare_err_stream( "   **   ~~~   ** Validation: In object Building at line number 4 (index 0) - Out of range value "
+				                    "0.0 is less than or equal to the minimum\n   **   ~~~   ** Validation: In object Building "
+				                    "at line number 6 (index 0) - Out of range value -123.456 is less than or equal to the minimum\n   **   ~~~   ** "
+				                    "Validation: In object BuildingSurface:Detailed at line number 18 (index 0) - A string was parsed here, "
+				                    "but the schema calls for number\n   **   ~~~   ** Validation: In object BuildingSurface:Detailed "
+				                    "at line number 23 (index 0) - Out of range value -98765.4321 is less than the minimum\n   **   ~~~   ** "
+				                    "Validation: In object BuildingSurface:Detailed at line number 28 (index 0) - Out of range value -987.654321 "
+				                    "is less than the minimum\n",
+		                    true );
 	}
 
 
