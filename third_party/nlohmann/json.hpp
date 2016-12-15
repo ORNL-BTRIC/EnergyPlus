@@ -992,7 +992,7 @@ class basic_json
 
     @since version 1.0.0
     */
-    using parser_callback_t = std::function<bool(int depth, parse_event_t event, basic_json& parsed,
+    using parser_callback_t = std::function<bool(size_t depth, parse_event_t event, basic_json& parsed,
                                                  size_t line_num, size_t line_index)>;
 
 
@@ -9549,7 +9549,7 @@ basic_json_parser_66:
 
       private:
         /// current level of recursion
-        int depth = 0;
+        size_t depth = 0;
         /// callback function
         const parser_callback_t callback = nullptr;
         /// the type of the last read token

@@ -143,9 +143,8 @@ public:
 
 private:
 	friend class InputProcessorFixture;
-	json null_json = json::object(), empty_str_json = std::string();
-	int depth = 0;
-	size_t line_num = 1, line_index = 0;
+	json null_json = json::object(), empty_str_json = std::string(), ext_str_json = "extensions";
+	size_t depth = 0, line_num = 1, line_index = 0;
 	char s[ 129 ];
 	char s2[ 129 ];
 };
@@ -164,7 +163,7 @@ public:
 
 	void validate( json & parsed, size_t line_num, size_t line_index );
 
-	int print_errors();
+	size_t print_errors();
 
 	void handle_error( ErrorType err, size_t line_num, size_t line_index );
 

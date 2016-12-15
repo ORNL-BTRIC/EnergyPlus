@@ -226,7 +226,7 @@
 #include <fstream>
 #include <algorithm>
 
-json::parser_callback_t EnergyPlus::EnergyPlusFixture::call_back = [](int EP_UNUSED( depth ), json::parse_event_t event, json &parsed,
+json::parser_callback_t EnergyPlus::EnergyPlusFixture::call_back = [](size_t EP_UNUSED( depth ), json::parse_event_t event, json &parsed,
 									   size_t line_num, size_t line_index) -> bool {
 	EnergyPlus::InputProcessor::state.traverse(event, parsed, line_num, line_index);
 	return true;
