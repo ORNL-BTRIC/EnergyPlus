@@ -160,7 +160,6 @@ def change_special_cased_enums(schema):
     loc = schema['properties']['Zone']['patternProperties']['.*']['properties']['zone_inside_convection_algorithm']['enum']
     loc.insert(0, '')
 
-
 def change_utility_cost(schema):
     loc = schema['properties']['UtilityCost:Charge:Block']
     legacy_idd = loc['legacy_idd']['fields']
