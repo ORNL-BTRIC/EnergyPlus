@@ -2396,6 +2396,7 @@ namespace EnergyPlus {
 		std::string extension_key;
 		OutputVariablesForSimulation.allocate( 10000 );
 		MaxConsideredOutputVariables = 10000;
+		OutputVariablesNames.reserve(1000);
 
 		// Output Variable
 		auto jdf_objects = jdf.find( OutputVariable );
@@ -2974,6 +2975,8 @@ namespace EnergyPlus {
 			OutputVariablesForSimulation( NumConsideredOutputVariables ).VarName = VarName;
 			OutputVariablesForSimulation( NumConsideredOutputVariables ).Previous = 0;
 			OutputVariablesForSimulation( NumConsideredOutputVariables ).Next = 0;
+			//store first index of the list for specific VarName into map for faster look-up
+			OutputVariablesNames[VarName] = NumConsideredOutputVariables;
 		} else {
 			if ( KeyValue != OutputVariablesForSimulation( CurNum ).Key ) {
 				NextNum = CurNum;
