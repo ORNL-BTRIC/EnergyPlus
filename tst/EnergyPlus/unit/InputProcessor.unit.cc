@@ -70,6 +70,123 @@
 
 namespace EnergyPlus {
 
+	TEST_F( InputProcessorFixture, IdfValidator ) {
+
+		json jdf =
+				{
+						{
+								"BuildingSurface:Detailed",
+								{
+										{"Zn009:Flr001",
+												{
+														{"surface_type", "Floor"},
+														{"construction_name", "FLOOR38"},
+														{"zone_name", "SCWINDOW"},
+														{"outside_boundary_condition", "Surface"},
+														{"outside_boundary_condition_object", "Zn009:Flr001"},
+														{"sun_exposure", "NoSun"},
+														{"wind_exposure", "NoWind"},
+														{"view_factor_to_ground", 1.000000},
+														{"number_of_vertices", 4},
+														{"extensions",
+																{
+																		{
+																				{"vertex_x_coordinate", ""},
+																				{"vertex_y_coordinate", 10},
+																				{"vertex_z_coordinate", 0}
+																		},
+																		{
+																				{"vertex_x_coordinate", 0.0},
+																				{"vertex_y_coordinate", ""},
+																				{"vertex_z_coordinate", 0}
+																		},
+																		{
+																				{"vertex_x_coordinate", 0.0},
+																				{"vertex_y_coordinate", 10},
+																				{"vertex_z_coordinate", 0}
+																		},
+																		{
+																				{"vertex_x_coordinate", ""},
+																				{"vertex_y_coordinate", 10},
+																				{"vertex_z_coordinate", ""}
+																		}
+																}
+														}
+												}
+										}
+								}
+						}
+				};
+
+
+		json const * ptr = & InputProcessor::schema;
+
+		JdfValidator jv( ptr );
+
+		Object Obj( jv );
+
+		json::parser_callback_t cb = [&jv, &Obj](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                size_t line_index) -> bool {
+			jv.traverse(event, parsed, line_num, line_index, depth, Obj);
+			return true;
+		};
+
+		json::parse(jdf.dump(2), cb);
+	}
+
+	TEST_F( InputProcessorFixture, IdfValidator2 ) {
+
+		json jdf =
+				{
+						{
+								"Building",
+								{
+										{
+												"Ref Bldg Medium Office New2004_v1.3_5.0",
+												{
+														{"north_axis", 0.0000},
+														{"terrain", "City"},
+														{"loads_convergence_tolerance_value", 0.040},
+														{"temperature_convergence_tolerance_value", 0.2000},
+														{"solar_distribution", "FullInteriorAndExterior"},
+														{"maximum_number_of_warmup_days", 25},
+														{"minimum_number_of_warmup_days", 6}
+												},
+										}
+								}
+						},
+						{
+								"GlobalGeometryRules",
+								{
+										{
+												"",
+												{
+														{"starting_vertex_position", "UpperLeftCorner"},
+														{"vertex_entry_direction", "Counterclockwise"},
+														{"coordinate_system", "Relative"},
+														{"daylighting_reference_point_coordinate_system", "Relative"},
+														{"rectangular_surface_coordinate_system", "Relative"}
+												}
+										}
+								}
+						}
+				};
+
+		json const * ptr = & InputProcessor::schema;
+
+		JdfValidator jv( ptr );
+
+		Object Obj( jv );
+
+		json::parser_callback_t cb = [&jv, &Obj](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                         size_t line_index) -> bool {
+			jv.traverse(event, parsed, line_num, line_index, depth, Obj);
+			return true;
+		};
+
+		json::parse(jdf.dump(2), cb);
+	}
+
 	TEST_F( InputProcessorFixture, decode_encode_1 ) {
 		auto const idf = delimited_string({
 											"Building,",

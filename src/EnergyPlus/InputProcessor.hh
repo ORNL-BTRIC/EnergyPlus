@@ -66,6 +66,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <map>
 #include <fstream>
 
@@ -149,6 +150,36 @@ private:
 	char s2[ 129 ];
 };
 
+class Object;
+
+class JdfValidator {
+public:
+	friend class Object;
+	JdfValidator( json const * schema );
+	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth,
+	               Object & Obj );
+
+protected:
+	std::unordered_set < std::string > names;
+	std::vector < const json * > stack;
+};
+
+class Object {
+public:
+	Object( JdfValidator & validator );
+	void object_start();
+	void object_end( size_t const depth );
+	void key( std::string const & key, size_t const depth );
+	void value( json const & val );
+	void array_start();
+	void array_end();
+
+protected:
+	std::array< std::unordered_set< std::string >, 5 > names;
+	std::vector < json const * > * stack_ptr;
+};
+
+
 class State {
 public:
 	enum class ErrorType {
@@ -175,7 +206,9 @@ public:
 
 	std::vector < std::string > const & validation_warnings();
 
-private:
+protected:
+	friend class Object;
+	friend class EplusType;
 	json const * schema;
 	std::vector < json const * > stack;
 	std::unordered_map < std::string, bool > obj_required;
@@ -196,9 +229,10 @@ private:
 namespace EnergyPlus {
 
 	class InputProcessor {
-	private:
+	public:
 		friend class EnergyPlusFixture;
 		friend class InputProcessorFixture;
+		friend class JdfValidator;
 
 		static
 		std::vector < std::string > const &
@@ -218,7 +252,6 @@ namespace EnergyPlus {
 		static std::ostream * echo_stream;
 		static char s[ 129 ];
 
-	public:
 		static
 		std::pair< bool, std::string >
 		ConvertInsensitiveObjectType( std::string const & objectType );

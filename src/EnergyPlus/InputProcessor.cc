@@ -85,6 +85,110 @@ typedef std::unordered_map < std::string, std::string > UnorderedObjectTypeMap;
 typedef std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > > UnorderedObjectCacheMap;
 typedef std::map < const json::object_t * const, std::pair < std::string, std::string > > UnorderedUnusedObjectMap;
 
+
+// This is my non class based approach
+//std::unordered_map < std::string, // E+ Object Type (BuildingSurface:Detailed)
+//		std::unordered_map < std::string, // E+ Object Type Name (CoolBuildingName)
+//				std::unordered_set < std::string > > > Objects; // Fields within this specific E+ Object Type
+//
+//// if BuildingSurface:Detailed -> CoolBuildingName -> extensions in Objects, then
+////    BuildingSurface:Detailed -> CoolBuildingName -> vec[0] -> set of fields in the first extension obj of CoolBuildingName
+//
+//std::unordered_map < std::string, // E+ Object Type (BuildingSurface:Detailed)
+//		std::unordered_map < std::string, // E+ Object Type Name (CoolBuildingName)
+//				std::vector < // Each extensible object, has no name typically, each index is an extension obj
+//				        std::unordered_set < std::string > > > > Extensions; // set of fields in each extension obj
+
+
+// Class based approach
+JdfValidator::JdfValidator( json const * schema ) {
+	stack.push_back( schema );
+}
+
+void JdfValidator::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index,
+                             size_t depth, Object & Obj ) {
+	switch ( event ) {
+		case json::parse_event_t::object_start:
+			Obj.object_start();
+			break;
+		case json::parse_event_t::object_end:
+			Obj.object_end( depth );
+			break;
+		case json::parse_event_t::key:
+			Obj.key( parsed.get< std::string >(), depth );
+			break;
+		case json::parse_event_t::value:
+			Obj.value( parsed );
+			break;
+		case json::parse_event_t::array_start:
+			Obj.array_start();
+			break;
+		case json::parse_event_t::array_end:
+			Obj.array_end();
+			break;
+	}
+}
+
+Object::Object( JdfValidator & validator ) {
+	stack_ptr = & validator.stack;
+}
+
+void Object::object_start() {
+	auto const & location = stack_ptr->back();
+	if ( location->find( "properties" ) != location->end() ) {
+		stack_ptr->push_back( & location->at( "properties" ) );
+	} else {
+		stack_ptr->push_back( & location->at( "patternProperties" )[ ".*" ] );
+	}
+}
+
+void Object::object_end( size_t const depth ) {
+	if ( ! names[ depth - 1 ].size() ) {
+		// error, empty object
+	}
+	if ( depth == 1 ) {
+		// end of Eplus Object Type, must pop twice from the stack
+		stack_ptr->pop_back();
+	}
+	stack_ptr->pop_back();
+}
+
+void Object::key( std::string const & key, size_t const depth ) {
+	auto const index = depth - 1;
+	if ( names[ index ].find( key ) == names[ index ].end() ) {
+		names[ depth - 1 ].insert( key );
+	} else {
+		// TODO DUPLICATE NAME ERROR!!
+	}
+
+	if ( depth == 2 ) {
+		return; // depth 2 is Object Name level, does not need to be / nor could it be pushed on to the stack
+	}
+	auto const & location = stack_ptr->back();
+	if ( location->find( key ) != location->end() ) {
+		stack_ptr->push_back( & location->at( key ) );
+	} else {
+		// TODO error key not found, remove from set?
+		return;
+	}
+
+}
+
+void Object::value( json const & val ) {
+	// TODO grab value, validate it
+	stack_ptr->pop_back();
+}
+
+void Object::array_start() {
+	stack_ptr->push_back( & stack_ptr->back()->at( "items" ) );
+}
+
+void Object::array_end() {
+	stack_ptr->pop_back();
+	stack_ptr->pop_back();
+}
+
+
 namespace EnergyPlus {
 	// initialization of class static variables
 	json InputProcessor::jdf = json();
