@@ -80,6 +80,7 @@
 #include <FileSystem.hh>
 #include <milo/dtoa.hpp>
 #include <milo/itoa.hpp>
+#include <tuple>
 
 typedef std::unordered_map < std::string, std::string > UnorderedObjectTypeMap;
 typedef std::unordered_map < std::string, std::pair < json::const_iterator, std::vector <json::const_iterator> > > UnorderedObjectCacheMap;
@@ -107,18 +108,19 @@ Validator::Validator( json const * schema ) {
 }
 
 void Validator::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
+	auto const & num_index_depth = std::make_tuple( line_num, line_index, depth );
 	switch ( event ) {
 		case json::parse_event_t::object_start:
 			Obj.object_start();
 			break;
 		case json::parse_event_t::object_end:
-			Obj.object_end( depth );
+			Obj.object_end( num_index_depth );
 			break;
 		case json::parse_event_t::key:
-			Obj.key( parsed.get< std::string >(), depth );
+			Obj.key( parsed.get< std::string >(), num_index_depth );
 			break;
 		case json::parse_event_t::value:
-			Obj.value( parsed );
+			Obj.value( parsed, num_index_depth );
 			break;
 		case json::parse_event_t::array_start:
 			Obj.array_start();
@@ -129,9 +131,9 @@ void Validator::traverse( json::parse_event_t & event, json & parsed, size_t lin
 	}
 }
 
-void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_index ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
+void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	u64toa( std::get< 0 >(num_index_depth), s );
+	u64toa( std::get< 1 >(num_index_depth), s2 );
 	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::ParametricPreproc:
@@ -154,9 +156,9 @@ void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_ind
 	}
 }
 
-void ErrorHandler::handle_error( ErrorType err, double val, size_t line_num, size_t line_index ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
+void ErrorHandler::handle_error( ErrorType err, double val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	u64toa( std::get< 0 >(num_index_depth), s );
+	u64toa( std::get< 1 >(num_index_depth), s2 );
 	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
 	dtoa( val, s );
 	switch ( err ) {
@@ -180,9 +182,10 @@ void ErrorHandler::handle_error( ErrorType err, double val, size_t line_num, siz
 	}
 }
 
-void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
+void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth,
+                                 std::string const & str ) {
+	u64toa( std::get< 0 >(num_index_depth), s );
+	u64toa( std::get< 1 >(num_index_depth), s2 );
 	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::KeyNotFound:
@@ -212,8 +215,6 @@ void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_ind
 }
 
 size_t ErrorHandler::print_errors() {
-//	if ( warnings.size() ) EnergyPlus::ShowWarningError("Number of validation warnings: " + std::to_string(warnings.size()));
-//	for ( auto const & s : warnings ) EnergyPlus::ShowContinueError( s );
 	if ( errors.size() ) EnergyPlus::ShowSevereError("Number of validation errors: " + std::to_string(errors.size()));
 	for ( auto const & s : errors ) EnergyPlus::ShowContinueError( s );
 	return static_cast<int> ( errors.size() );
@@ -228,7 +229,8 @@ void Object::object_start() {
 	}
 }
 
-void Object::object_end( size_t const depth ) {
+void Object::object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t depth = std::get< 2 >( num_index_depth );
 	if ( ! names[ depth - 1 ].size() ) {
 		// error, empty object
 	}
@@ -241,10 +243,11 @@ void Object::object_end( size_t const depth ) {
 
 }
 
-void Object::key( std::string const & key, size_t const depth ) {
+void Object::key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t const depth = std::get< 2 >( num_index_depth );
 	auto const index = depth - 1;
 	if ( names[ index ].find( key ) == names[ index ].end() ) {
-		names[ depth - 1 ].insert( key );
+		names[ index ].insert( key );
 	} else {
 		// TODO DUPLICATE NAME ERROR!!
 	}
@@ -265,7 +268,7 @@ void Object::key( std::string const & key, size_t const depth ) {
 
 }
 
-void Object::value( json const & val ) {
+void Object::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	// TODO grab value, validate it
 	stack.pop_back();
 }

@@ -164,9 +164,9 @@ protected:
 	};
 
 	size_t print_errors();
-	void handle_error( ErrorType err, size_t line_num, size_t line_index );
-	void handle_error( ErrorType err, double val, size_t line_num, size_t line_index );
-	void handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str );
+	void handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void handle_error( ErrorType err, double val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth, std::string const & str );
 
 	std::string const * object_name;
 	std::vector < std::string > errors;
@@ -178,9 +178,9 @@ class Object {
 public:
 	friend class Validator;
 	void object_start();
-	void object_end( size_t const depth );
-	void key( std::string const & key, size_t const depth );
-	void value( json const & val );
+	void object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void array_start();
 	void array_end();
 
