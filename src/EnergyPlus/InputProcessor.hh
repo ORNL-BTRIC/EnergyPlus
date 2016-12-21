@@ -150,23 +150,33 @@ private:
 	char s2[ 129 ];
 };
 
-class Object;
 
-class JdfValidator {
-public:
-	friend class Object;
-	JdfValidator( json const * schema );
-	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth,
-	               Object & Obj );
 
+
+class ErrorHandler {
 protected:
-	std::unordered_set < std::string > names;
-	std::vector < const json * > stack;
+	friend class Object;
+
+	enum class ErrorType {
+		ExclusiveMin = 0, Minimum = 1, ExclusiveMax = 2, Maximum = 3, ParametricPreproc = 4, ExpandObj = 5,
+		KeyNotFound = 6, ReqExtension = 7, ReqField = 8, ReqObj = 9, MinProperties = 10, MaxProperties = 11,
+		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16
+	};
+
+	size_t print_errors();
+	void handle_error( ErrorType err, size_t line_num, size_t line_index );
+	void handle_error( ErrorType err, double val, size_t line_num, size_t line_index );
+	void handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str );
+
+	std::string const * object_name;
+	std::vector < std::string > errors;
+	char s[ 129 ], s2[ 129 ];
 };
+
 
 class Object {
 public:
-	Object( JdfValidator & validator );
+	friend class Validator;
 	void object_start();
 	void object_end( size_t const depth );
 	void key( std::string const & key, size_t const depth );
@@ -176,8 +186,24 @@ public:
 
 protected:
 	std::array< std::unordered_set< std::string >, 5 > names;
-	std::vector < json const * > * stack_ptr;
+	std::vector < const json * > stack;
+	ErrorHandler * ErrHandler;
 };
+
+
+class Validator {
+public:
+	Validator( json const * schema );
+	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth );
+
+protected:
+	ErrorHandler ErrHandler;
+	Object Obj;
+};
+
+
+
+
 
 
 class State {
@@ -208,7 +234,6 @@ public:
 
 protected:
 	friend class Object;
-	friend class EplusType;
 	json const * schema;
 	std::vector < json const * > stack;
 	std::unordered_map < std::string, bool > obj_required;

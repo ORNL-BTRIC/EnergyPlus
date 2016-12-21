@@ -121,13 +121,12 @@ namespace EnergyPlus {
 
 		json const * ptr = & InputProcessor::schema;
 
-		JdfValidator jv( ptr );
+		Validator V( ptr );
 
-		Object Obj( jv );
 
-		json::parser_callback_t cb = [&jv, &Obj](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		json::parser_callback_t cb = [ &V ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
 		                                size_t line_index) -> bool {
-			jv.traverse(event, parsed, line_num, line_index, depth, Obj);
+			V.traverse(event, parsed, line_num, line_index, depth );
 			return true;
 		};
 
@@ -174,13 +173,12 @@ namespace EnergyPlus {
 
 		json const * ptr = & InputProcessor::schema;
 
-		JdfValidator jv( ptr );
+		Validator V( ptr );
 
-		Object Obj( jv );
 
-		json::parser_callback_t cb = [&jv, &Obj](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		json::parser_callback_t cb = [ &V ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
 		                                         size_t line_index) -> bool {
-			jv.traverse(event, parsed, line_num, line_index, depth, Obj);
+			V.traverse( event, parsed, line_num, line_index, depth );
 			return true;
 		};
 

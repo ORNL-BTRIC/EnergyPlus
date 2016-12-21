@@ -101,12 +101,12 @@ typedef std::map < const json::object_t * const, std::pair < std::string, std::s
 
 
 // Class based approach
-JdfValidator::JdfValidator( json const * schema ) {
-	stack.push_back( schema );
+Validator::Validator( json const * schema ) {
+	Obj.stack.push_back( schema );
+	Obj.ErrHandler = & this->ErrHandler;
 }
 
-void JdfValidator::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index,
-                             size_t depth, Object & Obj ) {
+void Validator::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
 	switch ( event ) {
 		case json::parse_event_t::object_start:
 			Obj.object_start();
@@ -129,16 +129,102 @@ void JdfValidator::traverse( json::parse_event_t & event, json & parsed, size_t 
 	}
 }
 
-Object::Object( JdfValidator & validator ) {
-	stack_ptr = & validator.stack;
+void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_index ) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	switch ( err ) {
+		case ErrorType::ParametricPreproc:
+			errors.push_back( err_str + " You must run Parametric Preprocessor" );
+			break;
+		case ErrorType::ExpandObj:
+			errors.push_back( err_str + " You must run the ExpandObjects program" );
+			break;
+		case ErrorType::MinProperties:
+			errors.push_back( err_str + " Minimum properties was not met" );
+			break;
+		case ErrorType::MaxProperties:
+			errors.push_back( err_str + " Maximum properties was exceeded" );
+			break;
+		case ErrorType::AnyOf:
+			errors.push_back( err_str + " A type of string was not found in the anyOf" );
+			break;
+		default:
+			errors.push_back( err_str + " handle_error() was called with the wrong arguments" );
+	}
+}
+
+void ErrorHandler::handle_error( ErrorType err, double val, size_t line_num, size_t line_index ) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	dtoa( val, s );
+	switch ( err ) {
+		case ErrorType::Minimum:
+			errors.push_back( err_str + " Out of range value " + s + " is less than the minimum" );
+			break;
+		case ErrorType::ExclusiveMin:
+			errors.push_back( err_str + " Out of range value " + s + " is less than or equal to the minimum" );
+			break;
+		case ErrorType::Maximum:
+			errors.push_back( err_str + " Out of range value " + s + " is greater than the maximum" );
+			break;
+		case ErrorType::ExclusiveMax:
+			errors.push_back( err_str + " Out of range value " + s + " is great than or equal to the maximum" );
+			break;
+		case ErrorType::EnumNum:
+			errors.push_back( err_str + " " + s + " is not in the enum of possible values for this field" );
+			break;
+		default:
+			errors.push_back( err_str + " handle_error was called with the wrong arguments" );
+	}
+}
+
+void ErrorHandler::handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str ) {
+	u64toa( line_num, s );
+	u64toa( line_index, s2 );
+	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	switch ( err ) {
+		case ErrorType::KeyNotFound:
+			errors.push_back( err_str + " Key " + str + " not found in schema" );
+			break;
+		case ErrorType::ReqExtension:
+			errors.push_back( err_str + " Required extensible field " + str + " was not provided" );
+			break;
+		case ErrorType::ReqField:
+			errors.push_back( err_str + " Required field " + str + " was not provided" );
+			break;
+		case ErrorType::ReqObj:
+			errors.push_back( "Required object \"" + str + "\" was not provided in the input file" );
+			break;
+		case ErrorType::EnumStr:
+			errors.push_back( err_str + " " + str + " is not in the enum of possible values for this field" );
+			break;
+		case ErrorType::TypeStr:
+			errors.push_back( err_str + " A string was parsed here, but the schema calls for " + str );
+			break;
+		case ErrorType::TypeNum:
+			errors.push_back( err_str + " A number was parsed here, but the schema calls for " + str );
+			break;
+		default:
+			errors.push_back( err_str + " handle_error() was called with the incorrect arguments for this error");
+	}
+}
+
+size_t ErrorHandler::print_errors() {
+//	if ( warnings.size() ) EnergyPlus::ShowWarningError("Number of validation warnings: " + std::to_string(warnings.size()));
+//	for ( auto const & s : warnings ) EnergyPlus::ShowContinueError( s );
+	if ( errors.size() ) EnergyPlus::ShowSevereError("Number of validation errors: " + std::to_string(errors.size()));
+	for ( auto const & s : errors ) EnergyPlus::ShowContinueError( s );
+	return static_cast<int> ( errors.size() );
 }
 
 void Object::object_start() {
-	auto const & location = stack_ptr->back();
+	auto const & location = stack.back();
 	if ( location->find( "properties" ) != location->end() ) {
-		stack_ptr->push_back( & location->at( "properties" ) );
+		stack.push_back( & location->at( "properties" ) );
 	} else {
-		stack_ptr->push_back( & location->at( "patternProperties" )[ ".*" ] );
+		stack.push_back( & location->at( "patternProperties" )[ ".*" ] );
 	}
 }
 
@@ -146,11 +232,13 @@ void Object::object_end( size_t const depth ) {
 	if ( ! names[ depth - 1 ].size() ) {
 		// error, empty object
 	}
+	// TODO check for required fields / objects in the set
 	if ( depth == 1 ) {
 		// end of Eplus Object Type, must pop twice from the stack
-		stack_ptr->pop_back();
+		stack.pop_back();
 	}
-	stack_ptr->pop_back();
+	stack.pop_back();
+
 }
 
 void Object::key( std::string const & key, size_t const depth ) {
@@ -161,12 +249,15 @@ void Object::key( std::string const & key, size_t const depth ) {
 		// TODO DUPLICATE NAME ERROR!!
 	}
 
-	if ( depth == 2 ) {
-		return; // depth 2 is Object Name level, does not need to be / nor could it be pushed on to the stack
+	if ( depth == 1 ) {
+		ErrHandler->object_name = & key;
+	} else if ( depth == 2 ) {
+		return; // E+ Object Name level, do nothing
 	}
-	auto const & location = stack_ptr->back();
+
+	auto const & location = stack.back();
 	if ( location->find( key ) != location->end() ) {
-		stack_ptr->push_back( & location->at( key ) );
+		stack.push_back( & location->at( key ) );
 	} else {
 		// TODO error key not found, remove from set?
 		return;
@@ -176,16 +267,16 @@ void Object::key( std::string const & key, size_t const depth ) {
 
 void Object::value( json const & val ) {
 	// TODO grab value, validate it
-	stack_ptr->pop_back();
+	stack.pop_back();
 }
 
 void Object::array_start() {
-	stack_ptr->push_back( & stack_ptr->back()->at( "items" ) );
+	stack.push_back( & stack.back()->at( "items" ) );
 }
 
 void Object::array_end() {
-	stack_ptr->pop_back();
-	stack_ptr->pop_back();
+	stack.pop_back();
+	stack.pop_back();
 }
 
 
