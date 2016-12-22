@@ -70,7 +70,7 @@
 
 namespace EnergyPlus {
 
-	TEST_F( InputProcessorFixture, IdfValidator ) {
+	TEST_F( InputProcessorFixture, ValidatorRequiredObjects ) {
 
 		json jdf =
 				{
@@ -118,22 +118,25 @@ namespace EnergyPlus {
 						}
 				};
 
-
 		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
 
-		Validator V( ptr );
-
-
-		json::parser_callback_t cb = [ &V ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
 		                                size_t line_index) -> bool {
-			V.traverse(event, parsed, line_num, line_index, depth );
+			VM.traverse(event, parsed, line_num, line_index, depth );
 			return true;
 		};
 
 		json::parse(jdf.dump(2), cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 37 (index 0)"
+		                    " - Required field Building was not provided\n   **   ~~~   ** Validation: In object "
+		"BuildingSurface:Detailed at line number 37 (index 0) - Required field GlobalGeometryRules was not provided\n",
+		                    true );
 	}
 
-	TEST_F( InputProcessorFixture, IdfValidator2 ) {
+	TEST_F( InputProcessorFixture, IdfValidatorRequiredFields ) {
 
 		json jdf =
 				{
@@ -160,9 +163,7 @@ namespace EnergyPlus {
 										{
 												"",
 												{
-														{"starting_vertex_position", "UpperLeftCorner"},
 														{"vertex_entry_direction", "Counterclockwise"},
-														{"coordinate_system", "Relative"},
 														{"daylighting_reference_point_coordinate_system", "Relative"},
 														{"rectangular_surface_coordinate_system", "Relative"}
 												}
@@ -173,16 +174,21 @@ namespace EnergyPlus {
 
 		json const * ptr = & InputProcessor::schema;
 
-		Validator V( ptr );
+		ValidationManager VM( ptr );
 
 
-		json::parser_callback_t cb = [ &V ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
 		                                         size_t line_index) -> bool {
-			V.traverse( event, parsed, line_num, line_index, depth );
+			VM.traverse( event, parsed, line_num, line_index, depth );
 			return true;
 		};
 
 		json::parse(jdf.dump(2), cb);
+		VM.print_errors();
+		compare_err_stream("   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 19 (index 0) - "
+				                   "Required field starting_vertex_position was not provided\n   **   ~~~   ** "
+				                   "Validation: In object GlobalGeometryRules at line number 19 (index 0) - "
+				                   "Required field coordinate_system was not provided\n", true);
 	}
 
 	TEST_F( InputProcessorFixture, decode_encode_1 ) {

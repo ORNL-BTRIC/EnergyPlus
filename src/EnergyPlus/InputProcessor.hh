@@ -155,50 +155,58 @@ private:
 
 class ErrorHandler {
 protected:
-	friend class Object;
+	friend class Validator;
+	friend class ValidationManager;
 
 	enum class ErrorType {
 		ExclusiveMin = 0, Minimum = 1, ExclusiveMax = 2, Maximum = 3, ParametricPreproc = 4, ExpandObj = 5,
 		KeyNotFound = 6, ReqExtension = 7, ReqField = 8, ReqObj = 9, MinProperties = 10, MaxProperties = 11,
-		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16
+		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16, DuplicateKey = 17, EmptyObj = 18,
+		ArrayStart = 19
 	};
 
-	size_t print_errors();
 	void handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void handle_error( ErrorType err, double val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth, std::string const & str );
 
-	std::string const * object_name;
+	std::string object_name;
 	std::vector < std::string > errors;
 	char s[ 129 ], s2[ 129 ];
 };
 
 
-class Object {
+class Validator {
 public:
-	friend class Validator;
-	void object_start();
-	void object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth );
-	void key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
-	void value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
-	void array_start();
-	void array_end();
+	friend class ValidationManager;
+
+	inline void update_obj_name( std::string const & key );
+	void check_duplicate_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_valid_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth );
 
 protected:
 	std::array< std::unordered_set< std::string >, 5 > names;
 	std::vector < const json * > stack;
-	ErrorHandler * ErrHandler;
+	ErrorHandler * EHandler;
 };
 
 
-class Validator {
+class ValidationManager {
 public:
-	Validator( json const * schema );
+	ValidationManager( json const * schema );
 	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth );
+	size_t print_errors();
 
 protected:
-	ErrorHandler ErrHandler;
-	Object Obj;
+	void object_start();
+	void object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void array_start( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void array_end( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+
+	ErrorHandler EHandler;
+	Validator validator;
 };
 
 

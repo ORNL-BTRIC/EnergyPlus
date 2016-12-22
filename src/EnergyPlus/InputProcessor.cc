@@ -102,31 +102,31 @@ typedef std::map < const json::object_t * const, std::pair < std::string, std::s
 
 
 // Class based approach
-Validator::Validator( json const * schema ) {
-	Obj.stack.push_back( schema );
-	Obj.ErrHandler = & this->ErrHandler;
+ValidationManager::ValidationManager( json const * schema ) {
+	validator.stack.push_back( schema );
+	validator.EHandler = & this->EHandler;
 }
 
-void Validator::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
+void ValidationManager::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
 	auto const & num_index_depth = std::make_tuple( line_num, line_index, depth );
 	switch ( event ) {
 		case json::parse_event_t::object_start:
-			Obj.object_start();
+			object_start();
 			break;
 		case json::parse_event_t::object_end:
-			Obj.object_end( num_index_depth );
+			object_end( num_index_depth );
 			break;
 		case json::parse_event_t::key:
-			Obj.key( parsed.get< std::string >(), num_index_depth );
+			key( parsed.get< std::string >(), num_index_depth );
 			break;
 		case json::parse_event_t::value:
-			Obj.value( parsed, num_index_depth );
+			value( parsed, num_index_depth );
 			break;
 		case json::parse_event_t::array_start:
-			Obj.array_start();
+			array_start( num_index_depth );
 			break;
 		case json::parse_event_t::array_end:
-			Obj.array_end();
+			array_end( num_index_depth );
 			break;
 	}
 }
@@ -134,7 +134,7 @@ void Validator::traverse( json::parse_event_t & event, json & parsed, size_t lin
 void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	u64toa( std::get< 0 >(num_index_depth), s );
 	u64toa( std::get< 1 >(num_index_depth), s2 );
-	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	std::string err_str = "Validation: In object " + object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::ParametricPreproc:
 			errors.push_back( err_str + " You must run Parametric Preprocessor" );
@@ -151,6 +151,13 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 		case ErrorType::AnyOf:
 			errors.push_back( err_str + " A type of string was not found in the anyOf" );
 			break;
+		case ErrorType::EmptyObj:
+			errors.push_back( err_str + " Object was empty" );
+			break;
+		case ErrorType::ArrayStart:
+			errors.push_back( err_str + " Incorrect array_start (\"[\") token placement. Arrays mark the beginning of" +
+			                  " the extension objects" );
+			break;
 		default:
 			errors.push_back( err_str + " handle_error() was called with the wrong arguments" );
 	}
@@ -159,7 +166,7 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 void ErrorHandler::handle_error( ErrorType err, double val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	u64toa( std::get< 0 >(num_index_depth), s );
 	u64toa( std::get< 1 >(num_index_depth), s2 );
-	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	std::string err_str = "Validation: In object " + object_name + " at line number " + s + " (index " + s2 + ") -";
 	dtoa( val, s );
 	switch ( err ) {
 		case ErrorType::Minimum:
@@ -186,7 +193,7 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
                                  std::string const & str ) {
 	u64toa( std::get< 0 >(num_index_depth), s );
 	u64toa( std::get< 1 >(num_index_depth), s2 );
-	std::string err_str = "Validation: In object " + *object_name + " at line number " + s + " (index " + s2 + ") -";
+	std::string err_str = "Validation: In object " + object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::KeyNotFound:
 			errors.push_back( err_str + " Key " + str + " not found in schema" );
@@ -209,77 +216,113 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 		case ErrorType::TypeNum:
 			errors.push_back( err_str + " A number was parsed here, but the schema calls for " + str );
 			break;
+		case ErrorType::DuplicateKey:
+			errors.push_back( err_str + " Duplicate key " + str + " was found" );
+			break;
 		default:
 			errors.push_back( err_str + " handle_error() was called with the incorrect arguments for this error");
 	}
 }
 
-size_t ErrorHandler::print_errors() {
-	if ( errors.size() ) EnergyPlus::ShowSevereError("Number of validation errors: " + std::to_string(errors.size()));
-	for ( auto const & s : errors ) EnergyPlus::ShowContinueError( s );
-	return static_cast<int> ( errors.size() );
+size_t ValidationManager::print_errors() {
+	for ( auto const & s : EHandler.errors ) EnergyPlus::ShowContinueError( s );
+	return EHandler.errors.size();
 }
 
-void Object::object_start() {
-	auto const & location = stack.back();
+void ValidationManager::object_start() {
+	auto const & location = validator.stack.back();
 	if ( location->find( "properties" ) != location->end() ) {
-		stack.push_back( & location->at( "properties" ) );
+		validator.stack.push_back( & location->at( "properties" ) );
 	} else {
-		stack.push_back( & location->at( "patternProperties" )[ ".*" ] );
+		validator.stack.push_back( & location->at( "patternProperties" )[ ".*" ] );
 	}
 }
 
-void Object::object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+void ValidationManager::object_end( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t depth = std::get< 2 >( num_index_depth );
-	if ( ! names[ depth - 1 ].size() ) {
-		// error, empty object
-	}
-	// TODO check for required fields / objects in the set
+
+	validator.check_obj_requirements( num_index_depth );
+	// TODO check minProperties and all that other stuff
 	if ( depth == 1 ) {
 		// end of Eplus Object Type, must pop twice from the stack
-		stack.pop_back();
+		validator.stack.pop_back();
 	}
-	stack.pop_back();
+	validator.stack.pop_back();
 
 }
 
-void Object::key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+void ValidationManager::key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t const depth = std::get< 2 >( num_index_depth );
-	auto const index = depth - 1;
+
+	if ( depth == 1 ) {
+		validator.update_obj_name(key);
+	}
+
+	if ( depth != 2 ) {
+		validator.check_valid_key( key, num_index_depth );
+	}
+	validator.check_duplicate_key( key, num_index_depth );
+}
+
+void ValidationManager::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	// TODO grab value, validate it
+	validator.stack.pop_back();
+}
+
+void ValidationManager::array_start( std::tuple< size_t, size_t, size_t > const & num_index_depth  ) {
+	auto const & location = validator.stack.back();
+	if ( location->find( "items" ) == location->end() ) {
+		// TODO I think this is bad, ValidationManager should probably never directly call handle_error
+		EHandler.handle_error( ErrorHandler::ErrorType::ArrayStart, num_index_depth );
+		return;
+	}
+	validator.stack.push_back( & validator.stack.back()->at( "items" ) );
+}
+
+void ValidationManager::array_end( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	validator.stack.pop_back();
+	validator.stack.pop_back();
+}
+
+void Validator::update_obj_name( std::string const & key ) {
+	EHandler->object_name = key;
+}
+
+void Validator::check_duplicate_key( std::string const & key,
+                                      std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t const index = std::get< 2 >( num_index_depth ) - 1;
 	if ( names[ index ].find( key ) == names[ index ].end() ) {
 		names[ index ].insert( key );
 	} else {
-		// TODO DUPLICATE NAME ERROR!!
+		EHandler->handle_error( ErrorHandler::ErrorType::DuplicateKey, num_index_depth, key );
 	}
+}
 
-	if ( depth == 1 ) {
-		ErrHandler->object_name = & key;
-	} else if ( depth == 2 ) {
-		return; // E+ Object Name level, do nothing
-	}
-
+void Validator::check_valid_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	auto const & location = stack.back();
 	if ( location->find( key ) != location->end() ) {
 		stack.push_back( & location->at( key ) );
 	} else {
-		// TODO error key not found, remove from set?
+		EHandler->handle_error( ErrorHandler::ErrorType::KeyNotFound, num_index_depth, key );
+	}
+}
+
+void Validator::check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t index = std::get< 2 >( num_index_depth );
+	if ( ! names[ index ].size() ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::EmptyObj, num_index_depth );
 		return;
 	}
-
-}
-
-void Object::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
-	// TODO grab value, validate it
-	stack.pop_back();
-}
-
-void Object::array_start() {
-	stack.push_back( & stack.back()->at( "items" ) );
-}
-
-void Object::array_end() {
-	stack.pop_back();
-	stack.pop_back();
+	auto const & location = stack[ stack.size() - 2 ];
+	if ( location->find( "required" ) != location->end() ) {
+		for ( auto const & field : location->at( "required" ) ) {
+			if ( names[ index ].find( field ) == names[ index ].end() ) {
+				// TODO Based on depth, required Object / Field / Extension field specific errors can be generated
+				EHandler->handle_error( ErrorHandler::ErrorType::ReqField, num_index_depth, field );
+			}
+		}
+	}
+	names[ index ].clear();
 }
 
 
