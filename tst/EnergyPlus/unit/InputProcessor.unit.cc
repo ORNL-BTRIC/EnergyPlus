@@ -69,8 +69,278 @@
 #include "Fixtures/InputProcessorFixture.hh"
 
 namespace EnergyPlus {
+	TEST_F( InputProcessorFixture, ValidationEmptyRootObject ) {
+		std::string jdf_str = R"({})";
 
-	TEST_F( InputProcessorFixture, ValidatorRequiredObjects ) {
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object  at line number 1 (index 0) - Object was empty\n",
+		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationBlankEPlusType ) {
+		// TODO figure out an acceptable solution to halting the parsing of the jdf upon encountering
+		// TODO a severe error such as this, and discuss which errors should be considered "severe"
+//		std::string jdf_str = R"(
+//		{
+//			"": {
+//				"SomeName": {
+//					"vertex_entry_direction": "Counterclockwise",
+//					"coordinate_system": "Spherical",
+//                    "starting_vertex_position": "UpperLeftCorner",
+//					"rectangular_surface_coordinate_system": "Relative"
+//				}
+//			}
+//		}
+//		)";
+//
+//		json const * ptr = & InputProcessor::schema;
+//		ValidationManager VM( ptr );
+//
+//		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+//		                                     size_t line_index) -> bool {
+//			VM.traverse(event, parsed, line_num, line_index, depth );
+//			return true;
+//		};
+//
+//		json::parse(jdf_str, cb);
+//
+//		VM.print_errors();
+//		compare_err_stream( "expected string",
+//		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationProperties ) {
+		// the json library itself throws:
+		// C++ exception with description "parse error - unexpected ':'; expected ']'" thrown in the test body.
+		std::string jdf_str = R"(
+		{
+			"GlobalGeometryRules": {
+				"": {
+					"vertex_entry_direction": "Counterclockwise",
+					"coordinate_system": "Spherical",
+                    "starting_vertex_position": "UpperLeftCorner",
+					"rectangular_surface_coordinate_system": "Relative"
+				},
+				"ExceedingMaxProperties": {
+					"vertex_entry_direction": "Counterclockwise",
+					"coordinate_system": "Spherical",
+                    "starting_vertex_position": "UpperLeftCorner",
+					"rectangular_surface_coordinate_system": "Relative"
+				}
+			}
+		}
+		)";
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 16 (index 0) - "
+				                    "Maximum properties was exceeded\n   **   ~~~   ** Validation: In object ROOT at "
+				                    "line number 18 (index 0) - Required field Building was not provided\n",
+		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationDuplicateKeys ) {
+		std::string jdf_str = R"(
+		{
+			"BuildingSurface:Detailed": {
+    			"Zn001:Flr001": {
+        			"construction_name": "FLOOR",
+        			"number_of_vertices": 4,
+					"outside_boundary_condition": "Adiabatic",
+					"outside_boundary_condition_object": "",
+					"sun_exposure": "NoSun",
+        			"surface_type": "Floor",
+        			"extensions": [
+           		        {
+                			"vertex_x_coordinate": 15.24,
+							"vertex_y_coordinate": 0.0,
+                            "vertex_z_coordinate": 0.0
+                        },
+                        {
+                            "vertex_x_coordinate": 0.0,
+                            "vertex_y_coordinate": 0.0,
+                            "vertex_z_coordinate": 0.0
+                        },
+                        {
+                            "vertex_x_coordinate": 0.0,
+                            "vertex_y_coordinate": 15.24,
+                            "vertex_z_coordinate": 0.0
+                        },
+                        {
+                            "vertex_x_coordinate": 15.24,
+                            "vertex_y_coordinate": 15.24,
+                            "vertex_z_coordinate": 0.0
+                        }
+                    ],
+                    "view_factor_to_ground": 1,
+                    "wind_exposure": "NoWind",
+                    "zone_name": "ZONE ONE"
+                },
+    			"Zn001:Flr001": {
+        			"construction_name": "FLOOR",
+					"outside_boundary_condition": "Adiabatic",
+        			"surface_type": "Floor",
+                    "zone_name": "ZONE ONE"
+                }
+			},
+			"GlobalGeometryRules": {
+				"": {
+					"vertex_entry_direction": "Counterclockwise",
+					"coordinate_system": "Spherical",
+                    "starting_vertex_position": "UpperLeftCorner",
+					"rectangular_surface_coordinate_system": "Relative",
+					"rectangular_surface_coordinate_system": "SomewhatRelative"
+				}
+			},
+			"Zone": {
+                "ZONE DUPLICATE": {
+                    "ceiling_height": "Autocalculate",
+                    "direction_of_relative_north": 0,
+                    "multiplier": 1,
+                    "type": 1,
+                    "volume": "Autocalculate",
+                    "x_origin": 0,
+                    "y_origin": 0,
+                    "z_origin": 0
+                },
+                "ZONE DUPLICATE": {
+                    "ceiling_height": "Autocalculate",
+                    "direction_of_relative_north": 0,
+                    "multiplier": 1,
+                    "type": 1,
+                    "volume": "Autocalculate",
+                    "x_origin": 0,
+                    "y_origin": 0,
+                    "z_origin": 0
+                }
+            }
+		}
+		)";
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 37 (index 0)"
+				                    " - Duplicate key Zn001:Flr001 was found\n   **   ~~~   ** Validation: In object "
+				                    "GlobalGeometryRules at line number 50 (index 0) - Duplicate key "
+				                    "rectangular_surface_coordinate_system was found\n   **   ~~~   ** Validation: In "
+				                    "object Zone at line number 64 (index 0) - Duplicate key ZONE DUPLICATE was found\n"
+				                    "   **   ~~~   ** Validation: In object ROOT at line number 76 (index 0) - Required"
+				                    " field Building was not provided\n",
+		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationEmptyObjects ) {
+		json jdf =
+				{
+						{
+								"BuildingSurface:Detailed",
+								{
+										{"Zn009:Flr001",
+												{
+														{"surface_type", "Floor"},
+														{"construction_name", "FLOOR38"},
+														{"zone_name", "SCWINDOW"},
+														{"outside_boundary_condition", "Surface"},
+														{"outside_boundary_condition_object", "Zn009:Flr001"},
+														{"sun_exposure", "NoSun"},
+														{"wind_exposure", "NoWind"},
+														{"view_factor_to_ground", 1.0},
+														{"number_of_vertices", 4},
+														{"extensions",
+																{
+																		{
+																				json::object()
+																		},
+																		{
+																				{"vertex_x_coordinate", 0.0},
+																				{"vertex_y_coordinate", ""},
+																				{"vertex_z_coordinate", 0}
+																		},
+																		{
+																				{"vertex_x_coordinate", 0.0},
+																				{"vertex_y_coordinate", 10},
+																				{"vertex_z_coordinate", 0}
+																		},
+																		{
+																				{"vertex_x_coordinate", ""},
+																				{"vertex_y_coordinate", 10},
+																				{"vertex_z_coordinate", ""}
+																		}
+																}
+														}
+												}
+										}
+								}
+						},
+						{
+								"Building",
+								{
+										json::object()
+								}
+						},
+						{
+							"GlobalGeometryRules",
+									{
+											{
+													"",
+													{
+															json::object()
+													}
+											}
+									}
+						}
+				};
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf.dump(2), cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object Building at line number 2 (index 0) - Object was "
+				                    "empty\n   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line "
+				                    "number 7 (index 0) - Object was empty\n   **   ~~~   ** Validation: In object "
+				                    "GlobalGeometryRules at line number 36 (index 0) - Object was empty\n",
+		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationRequiredObjects ) {
 
 		json jdf =
 				{
@@ -97,7 +367,7 @@ namespace EnergyPlus {
 																		},
 																		{
 																				{"vertex_x_coordinate", 0.0},
-																				{"vertex_y_coordinate", ""},
+																				{"vertex_y_coordinate", 10},
 																				{"vertex_z_coordinate", 0}
 																		},
 																		{
@@ -130,13 +400,13 @@ namespace EnergyPlus {
 		json::parse(jdf.dump(2), cb);
 
 		VM.print_errors();
-		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 37 (index 0)"
+		compare_err_stream( "   **   ~~~   ** Validation: In object ROOT at line number 37 (index 0)"
 		                    " - Required field Building was not provided\n   **   ~~~   ** Validation: In object "
-		"BuildingSurface:Detailed at line number 37 (index 0) - Required field GlobalGeometryRules was not provided\n",
+		"ROOT at line number 37 (index 0) - Required field GlobalGeometryRules was not provided\n",
 		                    true );
 	}
 
-	TEST_F( InputProcessorFixture, IdfValidatorRequiredFields ) {
+	TEST_F( InputProcessorFixture, ValidationRequiredFields ) {
 
 		json jdf =
 				{

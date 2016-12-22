@@ -242,7 +242,6 @@ void ValidationManager::object_end( std::tuple< size_t, size_t, size_t > const &
 	size_t depth = std::get< 2 >( num_index_depth );
 
 	validator.check_obj_requirements( num_index_depth );
-	// TODO check minProperties and all that other stuff
 	if ( depth == 1 ) {
 		// end of Eplus Object Type, must pop twice from the stack
 		validator.stack.pop_back();
@@ -304,27 +303,58 @@ void Validator::check_valid_key( std::string const & key, std::tuple< size_t, si
 		stack.push_back( & location->at( key ) );
 	} else {
 		EHandler->handle_error( ErrorHandler::ErrorType::KeyNotFound, num_index_depth, key );
+		// TODO if depth is 1 here, then an invalid EplusType was parsed, need to bomb out
 	}
 }
 
 void Validator::check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
-	size_t index = std::get< 2 >( num_index_depth );
-	if ( ! names[ index ].size() ) {
+	size_t depth = std::get< 2 >( num_index_depth );
+	if ( ! names[ depth ].size() ) {
 		EHandler->handle_error( ErrorHandler::ErrorType::EmptyObj, num_index_depth );
 		return;
 	}
+
+	check_required_fields( num_index_depth );
+	check_properties( num_index_depth );
+
+	names[ depth ].clear();
+}
+
+void Validator::check_required_fields( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t depth = std::get< 2 >( num_index_depth );
 	auto const & location = stack[ stack.size() - 2 ];
+
 	if ( location->find( "required" ) != location->end() ) {
 		for ( auto const & field : location->at( "required" ) ) {
-			if ( names[ index ].find( field ) == names[ index ].end() ) {
-				// TODO Based on depth, required Object / Field / Extension field specific errors can be generated
+			if ( names[ depth ].find( field ) == names[ depth ].end() ) {
+				// TODO ? Based on depth, required Object / Field / Extension field specific errors can be generated
+				if ( depth == 0 ) {
+					update_obj_name( "ROOT" );
+				}
 				EHandler->handle_error( ErrorHandler::ErrorType::ReqField, num_index_depth, field );
 			}
 		}
 	}
-	names[ index ].clear();
 }
 
+void Validator::check_properties( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	size_t const depth = std::get< 2 > ( num_index_depth );
+	if ( depth == 0 ) {
+		return;
+	}
+	auto const & location = stack[ stack.size() - 3 ];
+
+	if ( location->find( "minProperties" ) != location->end() ) {
+		if ( names[ depth - 1 ].size() < location->at( "minProperties" ).get< size_t >()) {
+			EHandler->handle_error( ErrorHandler::ErrorType::MinProperties, num_index_depth );
+		}
+	}
+	if ( location->find( "maxProperties" ) != location->end() ) {
+		if ( names[ depth - 1 ].size() > location->at( "maxProperties" ).get< size_t >()) {
+			EHandler->handle_error( ErrorHandler::ErrorType::MaxProperties, num_index_depth );
+		}
+	}
+}
 
 namespace EnergyPlus {
 	// initialization of class static variables

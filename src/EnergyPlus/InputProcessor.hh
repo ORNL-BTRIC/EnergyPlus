@@ -183,6 +183,8 @@ public:
 	void check_duplicate_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_valid_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_required_fields( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_properties( std::tuple< size_t, size_t, size_t > const & num_index_depth );
 
 protected:
 	std::array< std::unordered_set< std::string >, 5 > names;
