@@ -108,6 +108,9 @@ ValidationManager::ValidationManager( json const * schema ) {
 }
 
 void ValidationManager::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
+	if ( EHandler.severe_errors_found ) {
+		return;
+	}
 	auto const & num_index_depth = std::make_tuple( line_num, line_index, depth );
 	switch ( event ) {
 		case json::parse_event_t::object_start:
@@ -196,7 +199,10 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 	std::string err_str = "Validation: In object " + object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::KeyNotFound:
-			errors.push_back( err_str + " Key " + str + " not found in schema" );
+			if (std::get< 2 >( num_index_depth ) == static_cast< size_t >( Validator::Depth::EPlusObj )) {
+				severe_errors_found = true;
+			}
+			errors.push_back(err_str + " Key " + str + " not found in schema");
 			break;
 		case ErrorType::ReqExtension:
 			errors.push_back( err_str + " Required extensible field " + str + " was not provided" );
@@ -210,11 +216,8 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 		case ErrorType::EnumStr:
 			errors.push_back( err_str + " " + str + " is not in the enum of possible values for this field" );
 			break;
-		case ErrorType::TypeStr:
-			errors.push_back( err_str + " A string was parsed here, but the schema calls for " + str );
-			break;
-		case ErrorType::TypeNum:
-			errors.push_back( err_str + " A number was parsed here, but the schema calls for " + str );
+		case ErrorType::WrongType:
+			errors.push_back( err_str + " The wrong type was parsed here, the schema calls for type " + str );
 			break;
 		case ErrorType::DuplicateKey:
 			errors.push_back( err_str + " Duplicate key " + str + " was found" );
@@ -242,8 +245,7 @@ void ValidationManager::object_end( std::tuple< size_t, size_t, size_t > const &
 	size_t depth = std::get< 2 >( num_index_depth );
 
 	validator.check_obj_requirements( num_index_depth );
-	if ( depth == 1 ) {
-		// end of Eplus Object Type, must pop twice from the stack
+	if ( depth == static_cast< size_t >( Validator::Depth::EPlusObj ) ) {
 		validator.stack.pop_back();
 	}
 	validator.stack.pop_back();
@@ -253,18 +255,18 @@ void ValidationManager::object_end( std::tuple< size_t, size_t, size_t > const &
 void ValidationManager::key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t const depth = std::get< 2 >( num_index_depth );
 
-	if ( depth == 1 ) {
+	if ( depth == static_cast< size_t >( Validator::Depth::EPlusObj ) ) {
 		validator.update_obj_name(key);
 	}
 
-	if ( depth != 2 ) {
+	if ( depth != static_cast< size_t >( Validator::Depth::NamedEplusObj ) ) {
 		validator.check_valid_key( key, num_index_depth );
 	}
 	validator.check_duplicate_key( key, num_index_depth );
 }
 
 void ValidationManager::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
-	// TODO grab value, validate it
+	validator.validate( val, num_index_depth );
 	validator.stack.pop_back();
 }
 
@@ -283,12 +285,85 @@ void ValidationManager::array_end( std::tuple< size_t, size_t, size_t > const & 
 	validator.stack.pop_back();
 }
 
+void Validator::validate( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	auto const & location = stack.back();
+
+	if ( location->find( "enum" ) != location->end() ) {
+		check_val_in_enum( val, num_index_depth );
+	} else if ( location->find( "anyOf" ) != location->end() ) {
+		check_any_of( val, num_index_depth );
+	} else if ( val.is_number() ) {
+		check_number( val.get< double >(), num_index_depth );
+	} else if ( val.is_string() ) {
+		check_string( val.get< std::string >(), num_index_depth );
+	}
+}
+
+void Validator::check_val_in_enum( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	auto const & array = stack.back()->at( "enum" );
+	for ( auto const & v : array ) {
+		if ( ( val.is_string() && val.get< std::string >() == v )
+			|| ( val.is_number() && val.get< int >() == static_cast< int >( v ) ) ) {
+			return;
+		}
+	}
+	if ( val.is_number() ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::EnumNum, val.get< double >(), num_index_depth );
+	} else {
+		EHandler->handle_error( ErrorHandler::ErrorType::EnumStr, num_index_depth, val.get< std::string >() );
+	}
+}
+
+void Validator::check_any_of( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	// TODO fix hacky type stuff
+	if ( val.is_number() ) {
+		stack.push_back( & stack.back()->at( "anyOf" )[0] );
+		check_number( val.get< double >(), num_index_depth );
+	} else {
+		stack.push_back( & stack.back()->at( "anyOf" )[1] );
+		check_val_in_enum( val, num_index_depth );
+	}
+	stack.pop_back();
+}
+
+void Validator::check_number( double const val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	auto const & location = stack.back();
+
+	if ( location->find( "minimum" ) != location->end() ) {
+		bool exMin = location->find( "exclusiveMinimum" ) != location->end();
+		if ( exMin && val <= location->at( "minimum" ).get< double >() ) {
+			EHandler->handle_error( ErrorHandler::ErrorType::ExclusiveMin, val, num_index_depth );
+		} else if ( val < location->at( "minimum" ).get< double >() ) {
+			EHandler->handle_error( ErrorHandler::ErrorType::Minimum, val, num_index_depth );
+		}
+	}
+	if ( location->find( "maximum" ) != location->end() ) {
+		bool exMax = location->find( "exclusiveMaximum") != location->end();
+		if ( exMax && val >= location->at( "maximum" ).get< double >() ) {
+			EHandler->handle_error( ErrorHandler::ErrorType::ExclusiveMax, val, num_index_depth );
+		} else if ( val > location->at( "maximum" ).get< double >() ) {
+			EHandler->handle_error( ErrorHandler::ErrorType::Maximum, val, num_index_depth );
+		}
+	}
+
+	if ( location->find( "type" ) != location->end() && location->at( "type" ) != "number" ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::WrongType, num_index_depth, "number" );
+	}
+}
+
+void Validator::check_string( std::string const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+	auto const & location = stack.back();
+	if ( ! val.empty() && location->find( "type" ) != location->end() && location->at( "type" ) != "string" ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::WrongType, num_index_depth, "string" );
+	}
+}
+
 void Validator::update_obj_name( std::string const & key ) {
 	EHandler->object_name = key;
 }
 
 void Validator::check_duplicate_key( std::string const & key,
-                                      std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
+                                     std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t const index = std::get< 2 >( num_index_depth ) - 1;
 	if ( names[ index ].find( key ) == names[ index ].end() ) {
 		names[ index ].insert( key );
@@ -303,7 +378,6 @@ void Validator::check_valid_key( std::string const & key, std::tuple< size_t, si
 		stack.push_back( & location->at( key ) );
 	} else {
 		EHandler->handle_error( ErrorHandler::ErrorType::KeyNotFound, num_index_depth, key );
-		// TODO if depth is 1 here, then an invalid EplusType was parsed, need to bomb out
 	}
 }
 
@@ -328,7 +402,7 @@ void Validator::check_required_fields( std::tuple< size_t, size_t, size_t > cons
 		for ( auto const & field : location->at( "required" ) ) {
 			if ( names[ depth ].find( field ) == names[ depth ].end() ) {
 				// TODO ? Based on depth, required Object / Field / Extension field specific errors can be generated
-				if ( depth == 0 ) {
+				if ( depth == static_cast< size_t >( Validator::Depth::Root ) ) {
 					update_obj_name( "ROOT" );
 				}
 				EHandler->handle_error( ErrorHandler::ErrorType::ReqField, num_index_depth, field );

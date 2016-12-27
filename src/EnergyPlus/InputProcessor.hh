@@ -161,8 +161,7 @@ protected:
 	enum class ErrorType {
 		ExclusiveMin = 0, Minimum = 1, ExclusiveMax = 2, Maximum = 3, ParametricPreproc = 4, ExpandObj = 5,
 		KeyNotFound = 6, ReqExtension = 7, ReqField = 8, ReqObj = 9, MinProperties = 10, MaxProperties = 11,
-		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16, DuplicateKey = 17, EmptyObj = 18,
-		ArrayStart = 19
+		EnumStr = 12, EnumNum = 13, WrongType = 14, AnyOf = 15, DuplicateKey = 16, EmptyObj = 17, ArrayStart = 18
 	};
 
 	void handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth );
@@ -172,6 +171,7 @@ protected:
 	std::string object_name;
 	std::vector < std::string > errors;
 	char s[ 129 ], s2[ 129 ];
+	bool severe_errors_found = false;
 };
 
 
@@ -179,12 +179,22 @@ class Validator {
 public:
 	friend class ValidationManager;
 
+	enum class Depth : size_t {
+		Root = 0, EPlusObj = 1, NamedEplusObj = 2
+	};
+
 	inline void update_obj_name( std::string const & key );
 	void check_duplicate_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_valid_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_required_fields( std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_properties( std::tuple< size_t, size_t, size_t > const & num_index_depth );
+
+	void validate( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_val_in_enum( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_any_of( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_number( double const val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
+	void check_string( std::string const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 
 protected:
 	std::array< std::unordered_set< std::string >, 5 > names;

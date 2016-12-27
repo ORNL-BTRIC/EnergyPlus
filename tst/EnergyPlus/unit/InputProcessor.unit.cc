@@ -69,6 +69,83 @@
 #include "Fixtures/InputProcessorFixture.hh"
 
 namespace EnergyPlus {
+	TEST_F( InputProcessorFixture, ValidationStringsTypes ) {
+		std::string jdf_str =
+		R"({
+			"Zone": {
+                "ZONE1": {
+                    "ceiling_height": "MemeSupremeWhippedCream",
+                    "direction_of_relative_north": 0,
+                    "multiplier": 1,
+                    "type": 1,
+                    "volume": "AuToCaLcUlAtE",
+                    "x_origin": "ThisIsTheWrongType",
+                    "y_origin": 0,
+                    "z_origin": 0
+                }
+            }
+		})";
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 4 (index 0) - MemeSupremeWhippedCream"
+				            " is not in the enum of possible values for this field\n   **   ~~~   ** Validation: In object"
+				            " Zone at line number 8 (index 0) - AuToCaLcUlAtE is not in the enum of possible values for this"
+				            " field\n   **   ~~~   ** Validation: In object Zone at line number 9 (index 0) - The wrong type"
+				            " was parsed here, the schema calls for type string\n   **   ~~~   ** Validation: In object ROOT"
+				            " at line number 14 (index 0) - Required field Building was not provided\n   **   ~~~   ** "
+				            "Validation: In object ROOT at line number 14 (index 0) - Required field GlobalGeometryRules was not provided\n",
+		                    true );
+	}
+
+	TEST_F( InputProcessorFixture, ValidationCheckNumber ) {
+		std::string jdf_str =
+		R"({
+			"Zone": {
+                "ZONE1": {
+                    "ceiling_height": "Autocalculate",
+                    "direction_of_relative_north": 0,
+                    "multiplier": -13,
+                    "type": 9001,
+                    "volume": "Autocalculate",
+                    "x_origin": 0,
+                    "y_origin": 0,
+                    "z_origin": 0
+                }
+            }
+		})";
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 6 (index 0) - Out of range value"
+				                    " -13.0 is less than the minimum\n   **   ~~~   ** Validation: In object Zone at line"
+				                    " number 7 (index 0) - Out of range value 9001.0 is greater than the maximum\n   **   "
+				                    "~~~   ** Validation: In object ROOT at line number 14 (index 0) - Required field "
+				                    "Building was not provided\n   **   ~~~   ** Validation: In object ROOT at line "
+				                    "number 14 (index 0) - Required field GlobalGeometryRules was not provided\n",
+		                    true );
+	}
+
 	TEST_F( InputProcessorFixture, ValidationEmptyRootObject ) {
 		std::string jdf_str = R"({})";
 
@@ -88,58 +165,52 @@ namespace EnergyPlus {
 	}
 
 	TEST_F( InputProcessorFixture, ValidationBlankEPlusType ) {
-		// TODO figure out an acceptable solution to halting the parsing of the jdf upon encountering
-		// TODO a severe error such as this, and discuss which errors should be considered "severe"
-//		std::string jdf_str = R"(
-//		{
-//			"": {
-//				"SomeName": {
-//					"vertex_entry_direction": "Counterclockwise",
-//					"coordinate_system": "Spherical",
-//                    "starting_vertex_position": "UpperLeftCorner",
-//					"rectangular_surface_coordinate_system": "Relative"
-//				}
-//			}
-//		}
-//		)";
-//
-//		json const * ptr = & InputProcessor::schema;
-//		ValidationManager VM( ptr );
-//
-//		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-//		                                     size_t line_index) -> bool {
-//			VM.traverse(event, parsed, line_num, line_index, depth );
-//			return true;
-//		};
-//
-//		json::parse(jdf_str, cb);
-//
-//		VM.print_errors();
-//		compare_err_stream( "expected string",
-//		                    true );
+		// TODO discuss which errors should be considered "severe"
+		std::string jdf_str =
+		R"({
+			"": {
+				"SomeName": {
+					"vertex_entry_direction": "Counterclockwise",
+					"rectangular_surface_coordinate_system": "Relative"
+				}
+			}
+		})";
+
+		json const * ptr = & InputProcessor::schema;
+		ValidationManager VM( ptr );
+
+		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+		                                     size_t line_index) -> bool {
+			VM.traverse(event, parsed, line_num, line_index, depth );
+			return true;
+		};
+
+		json::parse(jdf_str, cb);
+		VM.print_errors();
+		compare_err_stream( "   **   ~~~   ** Validation: In object  at line number 2 (index 0) - Key  not found in schema\n",
+		                    true );
 	}
 
 	TEST_F( InputProcessorFixture, ValidationProperties ) {
 		// the json library itself throws:
 		// C++ exception with description "parse error - unexpected ':'; expected ']'" thrown in the test body.
-		std::string jdf_str = R"(
-		{
+		std::string jdf_str =
+		R"({
 			"GlobalGeometryRules": {
 				"": {
 					"vertex_entry_direction": "Counterclockwise",
-					"coordinate_system": "Spherical",
+					"coordinate_system": "Relative",
                     "starting_vertex_position": "UpperLeftCorner",
 					"rectangular_surface_coordinate_system": "Relative"
 				},
 				"ExceedingMaxProperties": {
 					"vertex_entry_direction": "Counterclockwise",
-					"coordinate_system": "Spherical",
+					"coordinate_system": "Relative",
                     "starting_vertex_position": "UpperLeftCorner",
 					"rectangular_surface_coordinate_system": "Relative"
 				}
 			}
-		}
-		)";
+		})";
 
 		json const * ptr = & InputProcessor::schema;
 		ValidationManager VM( ptr );
@@ -153,15 +224,15 @@ namespace EnergyPlus {
 		json::parse(jdf_str, cb);
 
 		VM.print_errors();
-		compare_err_stream( "   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 16 (index 0) - "
-				                    "Maximum properties was exceeded\n   **   ~~~   ** Validation: In object ROOT at "
-				                    "line number 18 (index 0) - Required field Building was not provided\n",
+		compare_err_stream( "   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 15 (index 0) - Maximum "
+				                    "properties was exceeded\n   **   ~~~   ** Validation: In object ROOT at line number"
+				                    " 16 (index 0) - Required field Building was not provided\n",
 		                    true );
 	}
 
 	TEST_F( InputProcessorFixture, ValidationDuplicateKeys ) {
-		std::string jdf_str = R"(
-		{
+		std::string jdf_str =
+		R"({
 			"BuildingSurface:Detailed": {
     			"Zn001:Flr001": {
         			"construction_name": "FLOOR",
@@ -206,10 +277,10 @@ namespace EnergyPlus {
 			"GlobalGeometryRules": {
 				"": {
 					"vertex_entry_direction": "Counterclockwise",
-					"coordinate_system": "Spherical",
+					"coordinate_system": "Relative",
                     "starting_vertex_position": "UpperLeftCorner",
 					"rectangular_surface_coordinate_system": "Relative",
-					"rectangular_surface_coordinate_system": "SomewhatRelative"
+					"rectangular_surface_coordinate_system": "World"
 				}
 			},
 			"Zone": {
@@ -234,8 +305,7 @@ namespace EnergyPlus {
                     "z_origin": 0
                 }
             }
-		}
-		)";
+		})";
 
 		json const * ptr = & InputProcessor::schema;
 		ValidationManager VM( ptr );
@@ -249,12 +319,12 @@ namespace EnergyPlus {
 		json::parse(jdf_str, cb);
 
 		VM.print_errors();
-		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 37 (index 0)"
+		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 36 (index 0)"
 				                    " - Duplicate key Zn001:Flr001 was found\n   **   ~~~   ** Validation: In object "
-				                    "GlobalGeometryRules at line number 50 (index 0) - Duplicate key "
+				                    "GlobalGeometryRules at line number 49 (index 0) - Duplicate key "
 				                    "rectangular_surface_coordinate_system was found\n   **   ~~~   ** Validation: In "
-				                    "object Zone at line number 64 (index 0) - Duplicate key ZONE DUPLICATE was found\n"
-				                    "   **   ~~~   ** Validation: In object ROOT at line number 76 (index 0) - Required"
+				                    "object Zone at line number 63 (index 0) - Duplicate key ZONE DUPLICATE was found\n"
+				                    "   **   ~~~   ** Validation: In object ROOT at line number 74 (index 0) - Required"
 				                    " field Building was not provided\n",
 		                    true );
 	}
