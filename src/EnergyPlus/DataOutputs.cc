@@ -62,6 +62,7 @@
 // EnergyPlus Headers
 #include <DataOutputs.hh>
 #include "internal/regex.h"
+#include "UtilityRoutines.hh"
 
 using regex = rapidjson::internal::Regex;
 using regex_search = rapidjson::internal::RegexSearch;
@@ -158,7 +159,7 @@ namespace DataOutputs {
 		auto const FirstIndex = OutputVariablesNames.find(VariableName);
 
 		if ( FirstIndex != OutputVariablesNames.end() ) Found = FirstIndex->second;
-		if ( Found != 0 ) {
+			if ( Found != 0 ) {
 			do{
 				if ( OutputVariablesForSimulation( Found ).Key == "*" ) {
 					InVariableList = true;
@@ -166,7 +167,7 @@ namespace DataOutputs {
 				}else{
 					regex KeyRegex( OutputVariablesForSimulation( Found ).Key.c_str() );
 					if ( ! KeyRegex.IsValid() ) {
-						//error message that regular expression is wrong
+						ShowFatalError("Regular expression \"" + OutputVariablesForSimulation( Found ).Key + "\" for variable name \"" + VariableName + "\" in input file is incorrect");
 						break;
 					}
 					regex_search KeySearch( KeyRegex );
@@ -178,9 +179,7 @@ namespace DataOutputs {
 				Found = OutputVariablesForSimulation( Found ).Next;
 			}while( Found != 0 );
 		}
-
 		return InVariableList;
-
 	}
 
 } // DataOutputs
