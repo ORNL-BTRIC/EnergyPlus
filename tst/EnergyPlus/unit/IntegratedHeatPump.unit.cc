@@ -1579,9 +1579,11 @@ namespace EnergyPlus {
 			ASSERT_TRUE( process_idf( idf_objects ) );
 
 			EXPECT_NO_THROW( GetIHPInput() );
-			compare_err_stream("   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object "
-					                   "AirLoopHVAC:UnitaryHeatPump:AirToAir at line number 771 (index 20) - Coil:Heating:Gas "
-					                   "is not in the enum of possible values for this field\n",
+			compare_err_stream("   **   ~~~   ** Validation: In object AirLoopHVAC:UnitaryHeatPump:AirToAir at line number 19 (index 0) "
+					           "- Coil:Heating:Gas is not in the enum of possible values for this field\n   **   ~~~   ** Validation: In "
+					           "object OutdoorAir:Node at line number 1234 (index 0) - Object was empty\n   **   ~~~   ** Validation: In "
+					           "object OutdoorAir:Node at line number 1235 (index 0) - Object was empty\n   **   ~~~   ** Validation: In "
+					           "object OutdoorAir:Node at line number 1237 (index 0) - Object was empty\n",
 			                   true);
 
 		}

@@ -235,11 +235,9 @@ TEST_F( EnergyPlusFixture, Tables_TwoIndVar_Malformed ) {
 
 	EXPECT_EQ( 1, CurveManager::NumCurves );
 
-	EXPECT_TRUE( compare_err_stream("   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object "
-			                                "Table:TwoIndependentVariables at line number 150 (index 5) - Required extensible field "
-			                                "output_value_1 was not provided\n   ** Severe  ** GetCurveInput: For "
-			                                "Table:TwoIndependentVariables: AWHP_RCAP\n   **   ~~~   ** The number of data entries "
-			                                "must be evenly divisable by 3. Number of data entries = 134\n",
+	EXPECT_TRUE( compare_err_stream("   **   ~~~   ** Validation: In object Table:TwoIndependentVariables at line number 250 (index 0) - "
+			                        "Required field output_value_1 was not provided\n   ** Severe  ** GetCurveInput: For "
+			                        "Table:TwoIndependentVariables: AWHP_RCAP\n   **   ~~~   ** The number of data entries must be evenly divisable by 3. Number of data entries = 134\n",
 	                                true ) );
 }
 

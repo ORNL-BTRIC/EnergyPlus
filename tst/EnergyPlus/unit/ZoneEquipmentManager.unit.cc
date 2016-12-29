@@ -127,7 +127,7 @@ TEST_F( EnergyPlusFixture, ZoneEquipmentManager_CalcZoneMassBalanceTest )
 	} );
 
 	ASSERT_TRUE(process_idf(idf_objects));
-	EXPECT_FALSE(has_err_output());
+	compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 52 (index 0) - Object was empty\n" , true );
 	bool ErrorsFound = false;
 	GetZoneData(ErrorsFound);
 	AllocateHeatBalArrays();

@@ -559,7 +559,8 @@ namespace EnergyPlus {
 
 
 	bool EnergyPlusFixture::process_idf( std::string const & idf_snippet, bool EP_UNUSED( use_assertions ), bool EP_UNUSED( use_idd_cache ) ) {
-		InputProcessor::jdf = InputProcessor::idf_parser.decode(idf_snippet, InputProcessor::schema, call_back);
+//		InputProcessor::jdf = InputProcessor::idf_parser.decode(idf_snippet, InputProcessor::schema, call_back);
+		InputProcessor::jdf = InputProcessor::idf_parser.decode(idf_snippet, InputProcessor::schema );
 
 		if (InputProcessor::jdf.find("Building") == InputProcessor::jdf.end()) {
 			InputProcessor::jdf["Building"] = {
@@ -591,6 +592,8 @@ namespace EnergyPlus {
 					}
 			};
 		}
+
+		json::parse( InputProcessor::jdf.dump(2), call_back );
 
 		int MaxArgs = 0;
 		int MaxAlpha = 0;

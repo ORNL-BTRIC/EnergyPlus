@@ -654,7 +654,8 @@ TEST_F( EnergyPlusFixture, DaylightingManager_GetDaylParamInGeoTrans_Test )
 	EXPECT_FALSE( foundErrors ); // expect no errors
 
 	HeatBalanceManager::GetConstructData( foundErrors ); // read construction data
-	compare_err_stream( "" );
+	compare_err_stream( "   **   ~~~   ** Validation: In object ScheduleTypeLimits at line number 339 (index 0) - "
+			                    "Object was empty\n", true );
 	EXPECT_FALSE( foundErrors ); // expect no errors
 
 	HeatBalanceManager::GetZoneData( foundErrors ); // read zone data
@@ -693,7 +694,7 @@ TEST_F( EnergyPlusFixture, DaylightingManager_GetDaylParamInGeoTrans_Test )
 	InternalHeatGains::GetInternalHeatGainsInputFlag = false;
 
 	GetDaylightingParametersInput(  );
-	compare_err_stream( "" );
+	compare_err_stream( "", true );
 	EXPECT_EQ( 1, TotRefPoints );
 
 	EXPECT_NEAR( 2.048, ZoneDaylight( 1 ).DaylRefPtAbsCoord( 1, 1 ), 0.001);

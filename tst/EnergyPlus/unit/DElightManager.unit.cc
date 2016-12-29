@@ -323,7 +323,8 @@ TEST_F( EnergyPlusFixture, DElightManagerF_GetInputDElightComplexFenestration_Te
 	EXPECT_FALSE( foundErrors ); // expect no errors
 
 	HeatBalanceManager::GetConstructData( foundErrors ); // read construction data
-	compare_err_stream( "" );
+	compare_err_stream( "   **   ~~~   ** Validation: In object ScheduleTypeLimits at line number 347 (index 0) - Object was empty\n",
+	                    true );
 	EXPECT_FALSE( foundErrors ); // expect no errors
 
 	HeatBalanceManager::GetZoneData( foundErrors ); // read zone data
@@ -362,7 +363,7 @@ TEST_F( EnergyPlusFixture, DElightManagerF_GetInputDElightComplexFenestration_Te
 	InternalHeatGains::GetInternalHeatGainsInputFlag = false;
 
 	GetInputDElightComplexFenestration( foundErrors );
-	compare_err_stream( "" );
+	compare_err_stream( "", true );
 	EXPECT_FALSE( foundErrors ); // expect no errors
 
 	EXPECT_EQ( 1, TotDElightCFS );

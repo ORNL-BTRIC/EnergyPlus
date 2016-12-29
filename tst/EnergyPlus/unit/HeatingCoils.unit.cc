@@ -105,12 +105,11 @@ namespace EnergyPlus {
 
 		std::string const error_string = delimited_string(
 				{
-						"   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object "
-								"Coil:Heating:Fuel at line number 4 (index 10) - Electric is not in the enum of possible values for this field\n"
-								"   ** Severe  ** GetHeatingCoilInput: Coil:Heating:Fuel: Invalid fuel_type entered =ELECTRIC for name=FURNACE COIL\n"
-								"   **  Fatal  ** GetHeatingCoilInput: Errors found in input.  Program terminates.\n"
-								"   ...Summary of Errors that led to program termination:\n   ..... Reference severe error count=2\n"
-								"   ..... Last severe error=GetHeatingCoilInput: Coil:Heating:Fuel: Invalid fuel_type entered =ELECTRIC for name=FURNACE COIL"
+				"   **   ~~~   ** Validation: In object Coil:Heating:Fuel at line number 19 (index 0) - Electric is not in the enum of possible values for this field\n"
+				"   ** Severe  ** GetHeatingCoilInput: Coil:Heating:Fuel: Invalid fuel_type entered =ELECTRIC for name=FURNACE COIL\n"
+				"   **  Fatal  ** GetHeatingCoilInput: Errors found in input.  Program terminates.\n"
+				"   ...Summary of Errors that led to program termination:\n   ..... Reference severe error count=1\n"
+				"   ..... Last severe error=GetHeatingCoilInput: Coil:Heating:Fuel: Invalid fuel_type entered =ELECTRIC for name=FURNACE COIL"
 				} );
 
 		EXPECT_TRUE( compare_err_stream( error_string, true ) );

@@ -111,7 +111,7 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_CheckFuelType )
 	} );
 
 	ASSERT_TRUE(process_idf(idf_objects));
-	EXPECT_FALSE(has_err_output());
+	compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 69 (index 0) - Object was empty\n" , true );
 
 	bool ErrorsFound(false);
 
@@ -162,7 +162,7 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_NegativeDesignLevel 
 	} );
 
 	ASSERT_TRUE(process_idf(idf_objects));
-	EXPECT_FALSE(has_err_output());
+	compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 57 (index 0) - Object was empty\n" , true );
 
 	bool ErrorsFound(false);
 
@@ -222,18 +222,13 @@ TEST_F( EnergyPlusFixture, InternalHeatGains_OtherEquipment_BadFuelType ) {
 
 	ASSERT_THROW( InternalHeatGains::GetInternalHeatGainsInput(), std::runtime_error );
 
-	std::string const error_string = delimited_string(
-			{
-					"   ** Severe  ** Number of validation errors: 1\n   **   ~~~   ** Validation: In object OtherEquipment at "
-							"line number 7 (index 7) - Water is not in the enum of possible values for this field",
-					"   ** Warning ** ProcessScheduleInput: Schedule:Constant=\"SCHEDULE1\", Blank schedule_type_limits_name input -- will not be validated.",
-					"   ** Severe  ** GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1",
-					"   **  Fatal  ** GetInternalHeatGains: Errors found in Getting Internal Gains Input, Program Stopped",
-					"   ...Summary of Errors that led to program termination:",
-					"   ..... Reference severe error count=2",
-					"   ..... Last severe error=GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1"
-			});
-
-	EXPECT_TRUE( compare_err_stream( error_string, true ) );
+	compare_err_stream( "   **   ~~~   ** Validation: In object OtherEquipment at line number 29 (index 0) - Water is not in"
+			            " the enum of possible values for this field\n   **   ~~~   ** Validation: In object Zone at line number 57 (index 0)"
+			            " - Object was empty\n   ** Warning ** ProcessScheduleInput: Schedule:Constant=\"SCHEDULE1\", Blank schedule_type_limits_name"
+			            " input -- will not be validated.\n   ** Severe  ** GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for"
+			            " name=OTHEREQ1\n   **  Fatal  ** GetInternalHeatGains: Errors found in Getting Internal Gains Input, Program Stopped\n   "
+			            "...Summary of Errors that led to program termination:\n   ..... Reference severe error count=1\n   ..... Last severe error="
+			            "GetInternalHeatGains: OtherEquipment: invalid fuel_type entered=WATER for name=OTHEREQ1\n"
+			, true );
 
 }

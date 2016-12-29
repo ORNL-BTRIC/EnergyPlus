@@ -183,7 +183,7 @@ public:
 		Root = 0, EPlusObj = 1, NamedEplusObj = 2
 	};
 
-	inline void update_obj_name( std::string const & key );
+	inline void update_obj_name( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_duplicate_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_valid_key( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth );
 	void check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth );

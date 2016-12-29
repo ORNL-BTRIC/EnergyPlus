@@ -1171,7 +1171,9 @@ namespace EnergyPlus {
 
 		ASSERT_TRUE( process_idf( idf_objects ) );
 
-		compare_err_stream( "" ); // just for debugging
+		compare_err_stream( "   **   ~~~   ** Validation: In object OutdoorAir:Node at line number 51 (index 0) - Object was empty\n"
+				            "   **   ~~~   ** Validation: In object ScheduleTypeLimits at line number 60 (index 0) - Object was empty\n",
+		true );
 
 		bool ErrorsFound( false ); // If errors detected in input
 		int ControllerNum( 0 ); // Controller number

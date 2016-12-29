@@ -154,7 +154,8 @@ TEST_F( EnergyPlusFixture, VAVNoReheatTerminalUnitSchedule ) {
 	DataZoneEquipment::GetZoneEquipmentData1();
 	ZoneAirLoopEquipmentManager::GetZoneAirLoopEquipment();
 	SingleDuct::GetSysInput();
-	EXPECT_TRUE( compare_err_stream( "" ) );
+	compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 49 (index 0) - Object was empty\n",
+	                    true );
 	DataHeatBalFanSys::TempControlType.allocate( 1 );
 	DataHeatBalFanSys::TempControlType( 1 ) = DataHVACGlobals::DualSetPointWithDeadBand;
 
@@ -325,7 +326,9 @@ TEST_F( EnergyPlusFixture, VAVReheatTerminalUnitSchedule ) {
 	DataZoneEquipment::GetZoneEquipmentData1();
 	ZoneAirLoopEquipmentManager::GetZoneAirLoopEquipment();
 	SingleDuct::GetSysInput();
-	EXPECT_TRUE( compare_err_stream( "" ) );
+	compare_err_stream( "   **   ~~~   ** Validation: In object AirTerminal:SingleDuct:VAV:Reheat at line number 15 (index 0)"
+			            " -  is not in the enum of possible values for this field\n   **   ~~~   ** Validation: In object"
+			            " Zone at line number 70 (index 0) - Object was empty\n", true );
 	DataHeatBalFanSys::TempControlType.allocate( 1 );
 	DataHeatBalFanSys::TempControlType( 1 ) = DataHVACGlobals::DualSetPointWithDeadBand;
 

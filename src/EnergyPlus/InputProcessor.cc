@@ -152,9 +152,7 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 	std::string err_str = "Validation: In object " + object_name + " at line number " + s + " (index " + s2 + ") -";
 	switch ( err ) {
 		case ErrorType::KeyNotFound:
-			if (std::get< 2 >( num_index_depth ) == static_cast< size_t >( Validator::Depth::EPlusObj )) {
-				severe_errors_found = true;
-			}
+			severe_errors_found = true;
 			errors.push_back(err_str + " Key " + str + " not found in schema");
 			break;
 		case ErrorType::ReqExtension:
@@ -252,15 +250,13 @@ void ValidationManager::key( std::string const & key, std::tuple< size_t, size_t
 	size_t const depth = std::get< 2 >( num_index_depth );
 
 	if ( depth == static_cast< size_t >( Validator::Depth::EPlusObj ) ) {
-		validator.update_obj_name(key);
+		validator.update_obj_name( key, num_index_depth );
 	}
 
 	if ( depth != static_cast< size_t >( Validator::Depth::NamedEplusObj ) ) {
 		validator.check_valid_key( key, num_index_depth );
 	}
-	if ( EnergyPlus::DataGlobals::isJDF ) {
-		validator.check_duplicate_key( key, num_index_depth );
-	}
+	validator.check_duplicate_key( key, num_index_depth );
 }
 
 void ValidationManager::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
@@ -314,14 +310,20 @@ void Validator::check_val_in_enum( json const & val, std::tuple< size_t, size_t,
 
 void Validator::check_any_of( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	// TODO fix hacky type stuff
+	auto const & location = stack.back()->at( "anyOf" );
 	if ( val.is_number() ) {
-		stack.push_back( & stack.back()->at( "anyOf" )[0] );
+		stack.push_back( & location[ 0 ] );
 		check_number( val.get< double >(), num_index_depth );
+		stack.pop_back();
 	} else {
-		stack.push_back( & stack.back()->at( "anyOf" )[1] );
-		check_val_in_enum( val, num_index_depth );
+		if ( location[ 1 ].find( "enum" ) != location[ 1 ].end() ) {
+			stack.push_back( & location[ 1 ] );
+			check_val_in_enum( val, num_index_depth );
+			stack.pop_back();
+		} else {
+			check_string( val.get< std::string >(), num_index_depth );
+		}
 	}
-	stack.pop_back();
 }
 
 void Validator::check_number( double const val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
@@ -356,8 +358,13 @@ void Validator::check_string( std::string const & val, std::tuple< size_t, size_
 	}
 }
 
-void Validator::update_obj_name( std::string const & key ) {
+void Validator::update_obj_name( std::string const & key, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	EHandler->object_name = key;
+	if ( key.find( "HVACTemplate:" ) != std::string::npos ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::ExpandObj, num_index_depth );
+	} else if ( key.find( "Parametric:" ) != std::string::npos ) {
+		EHandler->handle_error( ErrorHandler::ErrorType::ParametricPreproc, num_index_depth );
+	}
 }
 
 void Validator::check_duplicate_key( std::string const & key,
@@ -381,7 +388,7 @@ void Validator::check_valid_key( std::string const & key, std::tuple< size_t, si
 
 void Validator::check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t depth = std::get< 2 >( num_index_depth );
-	if ( ! names[ depth ].size() && EnergyPlus::DataGlobals::isJDF ) {
+	if ( ! names[ depth ].size() ) {
 		EHandler->handle_error( ErrorHandler::ErrorType::EmptyObj, num_index_depth );
 		return;
 	}
@@ -401,7 +408,7 @@ void Validator::check_required_fields( std::tuple< size_t, size_t, size_t > cons
 			if ( names[ depth ].find( field ) == names[ depth ].end() ) {
 				// TODO ? Based on depth, required Object / Field / Extension field specific errors can be generated
 				if ( depth == static_cast< size_t >( Validator::Depth::Root ) ) {
-					update_obj_name( "ROOT" );
+					update_obj_name( "ROOT", num_index_depth );
 				}
 				EHandler->handle_error( ErrorHandler::ErrorType::ReqField, num_index_depth, field );
 			}
