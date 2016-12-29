@@ -263,7 +263,6 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	auto const & schema_dot_star = schema_patternProperties[ ".*" ];
 	auto const & schema_obj_props = schema_dot_star[ "properties" ];
 	auto key = legacy_idd.find( "extension" );
-
 	json const * schema_obj_extensions = nullptr;
 	if ( legacy_idd_extensibles_iter != legacy_idd.end() ) {
 		extension_key = key.value();
@@ -506,10 +505,20 @@ std::string IdfParser::parse_string( std::string const & idf, size_t & index, bo
 
 		c = idf[ index ];
 		increment_both_index( index, index_into_cur_line );
-		if ( c == ',' ) {
-			complete = true;
-			decrement_both_index( index, index_into_cur_line );
-			break;
+		if (c == '{') {
+			possible_regex_on = true;
+			s += c;
+		}else if(c == '}'){
+			possible_regex_on = false;
+			s += c;
+		}else if ( c == ',' ) {
+			if (possible_regex_on){
+				s += c;
+			}else {
+				complete = true;
+				decrement_both_index(index, index_into_cur_line);
+				break;
+			}
 		} else if ( c == ';' ) {
 			complete = true;
 			decrement_both_index( index, index_into_cur_line );
