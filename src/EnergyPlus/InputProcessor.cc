@@ -87,53 +87,6 @@ typedef std::unordered_map < std::string, std::pair < json::const_iterator, std:
 typedef std::map < const json::object_t * const, std::pair < std::string, std::string > > UnorderedUnusedObjectMap;
 
 
-// This is my non class based approach
-//std::unordered_map < std::string, // E+ Object Type (BuildingSurface:Detailed)
-//		std::unordered_map < std::string, // E+ Object Type Name (CoolBuildingName)
-//				std::unordered_set < std::string > > > Objects; // Fields within this specific E+ Object Type
-//
-//// if BuildingSurface:Detailed -> CoolBuildingName -> extensions in Objects, then
-////    BuildingSurface:Detailed -> CoolBuildingName -> vec[0] -> set of fields in the first extension obj of CoolBuildingName
-//
-//std::unordered_map < std::string, // E+ Object Type (BuildingSurface:Detailed)
-//		std::unordered_map < std::string, // E+ Object Type Name (CoolBuildingName)
-//				std::vector < // Each extensible object, has no name typically, each index is an extension obj
-//				        std::unordered_set < std::string > > > > Extensions; // set of fields in each extension obj
-
-
-// Class based approach
-ValidationManager::ValidationManager( json const * schema ) {
-	validator.stack.push_back( schema );
-	validator.EHandler = & this->EHandler;
-}
-
-void ValidationManager::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
-	if ( EHandler.severe_errors_found ) {
-		return;
-	}
-	auto const & num_index_depth = std::make_tuple( line_num, line_index, depth );
-	switch ( event ) {
-		case json::parse_event_t::object_start:
-			object_start();
-			break;
-		case json::parse_event_t::object_end:
-			object_end( num_index_depth );
-			break;
-		case json::parse_event_t::key:
-			key( parsed.get< std::string >(), num_index_depth );
-			break;
-		case json::parse_event_t::value:
-			value( parsed, num_index_depth );
-			break;
-		case json::parse_event_t::array_start:
-			array_start( num_index_depth );
-			break;
-		case json::parse_event_t::array_end:
-			array_end( num_index_depth );
-			break;
-	}
-}
-
 void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	u64toa( std::get< 0 >(num_index_depth), s );
 	u64toa( std::get< 1 >(num_index_depth), s2 );
@@ -227,9 +180,52 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 	}
 }
 
+ValidationManager::ValidationManager( json const * schema ) {
+	validator.stack.push_back( schema );
+	validator.EHandler = & this->EHandler;
+}
+
+void ValidationManager::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth ) {
+	if ( EHandler.severe_errors_found ) {
+		return;
+	}
+	auto const & num_index_depth = std::make_tuple( line_num, line_index, depth );
+	switch ( event ) {
+		case json::parse_event_t::object_start:
+			object_start();
+			break;
+		case json::parse_event_t::object_end:
+			object_end( num_index_depth );
+			break;
+		case json::parse_event_t::key:
+			key( parsed.get< std::string >(), num_index_depth );
+			break;
+		case json::parse_event_t::value:
+			value( parsed, num_index_depth );
+			break;
+		case json::parse_event_t::array_start:
+			array_start( num_index_depth );
+			break;
+		case json::parse_event_t::array_end:
+			array_end( num_index_depth );
+			break;
+	}
+}
+
 size_t ValidationManager::print_errors() {
 	for ( auto const & s : EHandler.errors ) EnergyPlus::ShowContinueError( s );
 	return EHandler.errors.size();
+}
+
+void ValidationManager::clear_state() {
+	for ( auto & set : validator.names ) {
+		set.clear();
+	}
+	EHandler.object_name = "";
+	validator.stack.clear();
+	EHandler.errors.clear();
+	EHandler.severe_errors_found = false;
+	validator.stack.push_back( & EnergyPlus::InputProcessor::schema );
 }
 
 void ValidationManager::object_start() {
@@ -262,7 +258,9 @@ void ValidationManager::key( std::string const & key, std::tuple< size_t, size_t
 	if ( depth != static_cast< size_t >( Validator::Depth::NamedEplusObj ) ) {
 		validator.check_valid_key( key, num_index_depth );
 	}
-	validator.check_duplicate_key( key, num_index_depth );
+	if ( EnergyPlus::DataGlobals::isJDF ) {
+		validator.check_duplicate_key( key, num_index_depth );
+	}
 }
 
 void ValidationManager::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
@@ -383,7 +381,7 @@ void Validator::check_valid_key( std::string const & key, std::tuple< size_t, si
 
 void Validator::check_obj_requirements( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t depth = std::get< 2 >( num_index_depth );
-	if ( ! names[ depth ].size() ) {
+	if ( ! names[ depth ].size() && EnergyPlus::DataGlobals::isJDF ) {
 		EHandler->handle_error( ErrorHandler::ErrorType::EmptyObj, num_index_depth );
 		return;
 	}
@@ -435,7 +433,7 @@ namespace EnergyPlus {
 	json InputProcessor::jdf = json();
 	json InputProcessor::schema = json();
 	IdfParser InputProcessor::idf_parser = IdfParser();
-	State InputProcessor::state = State();
+
 	char InputProcessor::s[] = { 0 };
 	std::ostream * InputProcessor::echo_stream = nullptr;
 
@@ -570,7 +568,9 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			if ( cb ) {
 				auto obj = json::basic_json( obj_name );
 				cb( depth, json::parse_event_t::key, obj, line_num, line_index );
-				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+				// TODO, removed the above callback because it is 100% VALID in IDF, for example:
+				// BuildingSurface:Detailed, field 1, 2, ..., n;  BuildingSurface:Detailed, field 1, 2, ... n;
+				// BuildingSurface:Detailed is would register as a parse_event_key but they are duplicated normally
 				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 			}
 			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, cb );
@@ -737,6 +737,10 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			if ( find_field_iter == schema_obj_props.end() ) {
 				if ( field == "name" ) {
 					root[ field ] = parse_string( idf, index, success );
+					if ( cb ) {
+						cb( depth, json::parse_event_t::key, root[ field ], line_num, line_index );
+						cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+					}
 				} else {
 					handle_error(ErrorType::FieldNotFound, field);
 				}
@@ -744,6 +748,12 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
 				root[ field ] = std::move( val );
 				if ( cb ) {
+					if ( legacy_idd_index == 0 ) {
+						// TODO Nameless objects get handled elsewhere, but that may not be a good thing
+						// this is where the callback for checking key duplication would go, but it would fail in the current setup
+						// cb( depth, json::parse_event_t::key, empty_str_json, line_num, line_index );
+						cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
+					}
 					json key = field;
 					cb( depth, json::parse_event_t::key, key, line_num, line_index );
 					cb( depth, json::parse_event_t::value, root[ field ], line_num, line_index );
@@ -1062,324 +1072,6 @@ IdfParser::Token IdfParser::next_token( std::string const & idf, size_t & index 
 	return Token::NONE;
 }
 
-void State::initialize( json const * parsed_schema ) {
-	stack.clear();
-	schema = parsed_schema;
-	stack.push_back( schema );
-	json const & loc = stack.back()->at( "required" );
-	for ( auto & s : loc ) root_required.emplace( s.get < std::string >(), false );
-}
-
-void State::handle_error( ErrorType err, size_t line_num, size_t line_index ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
-	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
-	switch ( err ) {
-		case ErrorType::ParametricPreproc:
-			errors.push_back( err_str + " You must run Parametric Preprocessor" );
-			break;
-		case ErrorType::ExpandObj:
-			errors.push_back( err_str + " You must run the ExpandObjects program" );
-			break;
-		case ErrorType::MinProperties:
-			errors.push_back( err_str + " Minimum properties was not met" );
-			break;
-		case ErrorType::MaxProperties:
-			errors.push_back( err_str + " Maximum properties was exceeded" );
-			break;
-		case ErrorType::AnyOf:
-			errors.push_back( err_str + " A type of string was not found in the anyOf" );
-			break;
-		default:
-			errors.push_back( err_str + " handle_error() was called with the wrong arguments" );
-	}
-}
-
-void State::handle_error( ErrorType err, double val, size_t line_num, size_t line_index ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
-	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
-	dtoa( val, s );
-	switch ( err ) {
-		case ErrorType::Minimum:
-			errors.push_back( err_str + " Out of range value " + s + " is less than the minimum" );
-			break;
-		case ErrorType::ExclusiveMin:
-			errors.push_back( err_str + " Out of range value " + s + " is less than or equal to the minimum" );
-			break;
-		case ErrorType::Maximum:
-			errors.push_back( err_str + " Out of range value " + s + " is greater than the maximum" );
-			break;
-		case ErrorType::ExclusiveMax:
-			errors.push_back( err_str + " Out of range value " + s + " is great than or equal to the maximum" );
-			break;
-		case ErrorType::EnumNum:
-			errors.push_back( err_str + " " + s + " is not in the enum of possible values for this field" );
-			break;
-		default:
-			errors.push_back( err_str + " handle_error was called with the wrong arguments" );
-	}
-}
-
-void State::handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str ) {
-	u64toa( line_num, s );
-	u64toa( line_index, s2 );
-	std::string err_str = "Validation: In object " + cur_obj_name + " at line number " + s + " (index " + s2 + ") -";
-	switch ( err ) {
-		case ErrorType::KeyNotFound:
-			errors.push_back( err_str + " Key " + str + " not found in schema" );
-			break;
-		case ErrorType::ReqExtension:
-			errors.push_back( err_str + " Required extensible field " + str + " was not provided" );
-			break;
-		case ErrorType::ReqField:
-			errors.push_back( err_str + " Required field " + str + " was not provided" );
-			break;
-		case ErrorType::ReqObj:
-			errors.push_back( "Required object \"" + str + "\" was not provided in the input file" );
-			break;
-		case ErrorType::EnumStr:
-			errors.push_back( err_str + " " + str + " is not in the enum of possible values for this field" );
-			break;
-		case ErrorType::TypeStr:
-			errors.push_back( err_str + " A string was parsed here, but the schema calls for " + str );
-			break;
-		case ErrorType::TypeNum:
-			errors.push_back( err_str + " A number was parsed here, but the schema calls for " + str );
-			break;
-		default:
-			errors.push_back( err_str + " handle_error() was called with the incorrect arguments for this error");
-	}
-}
-
-size_t State::print_errors() {
-	if ( warnings.size() ) EnergyPlus::ShowWarningError("Number of validation warnings: " + std::to_string(warnings.size()));
-	for ( auto const & s : warnings ) EnergyPlus::ShowContinueError( s );
-	if ( errors.size() ) EnergyPlus::ShowSevereError("Number of validation errors: " + std::to_string(errors.size()));
-	for ( auto const & s : errors ) EnergyPlus::ShowContinueError( s );
-	return static_cast<int> ( errors.size() );
-}
-
-std::vector < std::string > const & State::validation_errors() {
-	return errors;
-}
-
-std::vector < std::string > const & State::validation_warnings() {
-	return warnings;
-}
-
-void State::traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index ) {
-	switch ( event ) {
-		case json::parse_event_t::object_start: {
-			if ( is_in_extensibles || stack.back()->find( "patternProperties" ) == stack.back()->end() ) {
-				if ( stack.back()->find( "properties" ) != stack.back()->end() )
-					stack.push_back( & stack.back()->at( "properties" ) );
-			} else {
-				stack.push_back( & stack.back()->at( "patternProperties" )[ ".*" ] );
-				if ( stack.back()->find( "required" ) != stack.back()->end() ) {
-					auto & loc = stack.back()->at( "required" );
-					obj_required.clear();
-					for ( auto & s : loc ) obj_required.emplace( s.get < std::string >(), false );
-				}
-			}
-			last_seen_event = event;
-			break;
-		}
-
-		case json::parse_event_t::value: {
-			validate( parsed, line_num, line_index );
-			if ( does_key_exist ) stack.pop_back();
-			does_key_exist = true;
-			last_seen_event = event;
-			break;
-		}
-
-		case json::parse_event_t::key: {
-			std::string const & key = parsed;
-			prev_line_index = line_index;
-			prev_key_len = key.size() + 3;
-			if ( need_new_object_name ) {
-				cur_obj_name = key;
-				cur_obj_count = 0;
-				need_new_object_name = false;
-				if ( cur_obj_name.find( "Parametric:" ) != std::string::npos ) {
-					handle_error( ErrorType::ParametricPreproc, line_num, line_index );
-				} else if ( cur_obj_name.find( "Template" ) != std::string::npos ) {
-					handle_error( ErrorType::ExpandObj, line_num, line_index );
-				}
-			}
-
-			if ( stack.back()->find( "properties" ) == stack.back()->end() ) {
-				if ( stack.back()->find( key ) != stack.back()->end() ) {
-					stack.push_back( & stack.back()->at( key ) );
-				} else {
-					handle_error( ErrorType::KeyNotFound, line_num, line_index, key );
-					does_key_exist = false;
-				}
-			}
-
-			if ( !is_in_extensibles ) {
-				auto req = obj_required.find( key );
-				if ( req != obj_required.end() ) {
-					req->second = true; // required field is now accounted for, for this specific object
-				}
-				req = root_required.find( key );
-				if ( req != root_required.end() ) {
-					req->second = true; // root_required field is now accounted for
-				}
-			} else {
-				auto req = extensible_required.find( key );
-				if ( req != extensible_required.end() ) req->second = true;
-			}
-
-			last_seen_event = event;
-			break;
-		}
-
-		case json::parse_event_t::array_start: {
-			stack.push_back( & stack.back()->at( "items" ) );
-			if ( stack.back()->find( "required" ) != stack.back()->end() ) {
-				auto & loc = stack.back()->at( "required" );
-				extensible_required.clear();
-				for ( auto & s : loc ) extensible_required.emplace( s.get < std::string >(), false );
-			}
-			is_in_extensibles = true;
-			last_seen_event = event;
-			break;
-		}
-
-		case json::parse_event_t::array_end: {
-			stack.pop_back();
-			stack.pop_back();
-			is_in_extensibles = false;
-			last_seen_event = event;
-			break;
-		}
-
-		case json::parse_event_t::object_end: {
-			if ( is_in_extensibles ) {
-				for ( auto & it : extensible_required ) {
-					if ( !it.second ) {
-						handle_error( ErrorType::ReqExtension, line_num, line_index, it.first );
-					}
-					it.second = false;
-				}
-			} else if ( last_seen_event != json::parse_event_t::object_end ) {
-				cur_obj_count++;
-				for ( auto & it : obj_required ) {
-					if ( !it.second ) {
-						handle_error( ErrorType::ReqField, line_num, line_index, it.first );
-					}
-					it.second = false;
-				}
-			} else { // must be at the very end of an object now
-				const auto * loc = stack.back();
-				if ( loc->find( "minProperties" ) != loc->end() &&
-					 cur_obj_count < loc->at( "minProperties" ).get < unsigned >() ) {
-					handle_error( ErrorType::MinProperties, line_num, line_index );
-				}
-				if ( loc->find( "maxProperties" ) != loc->end() &&
-					 cur_obj_count > loc->at( "maxProperties" ).get < unsigned >() ) {
-					handle_error( ErrorType::MaxProperties, line_num, line_index );
-				}
-				obj_required.clear();
-				extensible_required.clear();
-				need_new_object_name = true;
-				stack.pop_back();
-			}
-			stack.pop_back();
-			last_seen_event = event;
-			break;
-		}
-	}
-	if ( !stack.size() ) {
-		for ( auto & it: root_required ) {
-			if ( !it.second ) {
-				handle_error( ErrorType::ReqObj, line_num, line_index, it.first );
-			}
-		}
-	}
-}
-
-void State::validate( json & parsed, size_t line_num, size_t line_index ) {
-	auto const * loc = stack.back();
-
-	if ( loc->find( "enum" ) != loc->end() ) {
-		size_t i;
-		auto const & enum_array = loc->at( "enum" );
-		auto const enum_array_size = enum_array.size();
-		if ( parsed.is_string() ) {
-			auto const & parsed_string = parsed.get < std::string >();
-			for ( i = 0; i < enum_array_size; i++ ) {
-				auto const & enum_string = enum_array[ i ].get< std::string >();
-				if ( icompare( enum_string, parsed_string ) ) break;
-			}
-			if ( i == enum_array_size ) {
-				handle_error( ErrorType::EnumStr, line_num, line_index, parsed_string );
-			}
-		} else {
-			int const parsed_int = parsed.get < int >();
-			for ( i = 0; i < enum_array_size; i++ ) {
-				auto const & enum_int = enum_array[ i ].get< int >();
-				if ( enum_int == parsed_int ) break;
-			}
-			if ( i == enum_array_size ) {
-				handle_error( ErrorType::EnumNum, parsed_int, line_num, line_index );
-			}
-		}
-	} else if ( parsed.is_number() ) {
-		double const val = parsed.get < double >();
-		auto const found_anyOf = loc->find( "anyOf" );
-		if ( found_anyOf != loc->end() ) {
-			loc = & found_anyOf->at( 0 );
-		}
-		auto const found_min = loc->find( "minimum" );
-		if ( found_min != loc->end() ) {
-			double const min_val = found_min->get < double >();
-			if ( loc->find( "exclusiveMinimum" ) != loc->end() && val <= min_val ) {
-				handle_error( ErrorType::ExclusiveMin, val, line_num, line_index );
-			} else if ( val < min_val ) {
-				handle_error( ErrorType::Minimum, val, line_num, line_index );
-			}
-		}
-		auto const found_max = loc->find( "maximum" );
-		if ( found_max != loc->end() ) {
-			double const max_val = found_max->get < double >();
-			if ( loc->find( "exclusiveMaximum" ) != loc->end() && val >= max_val ) {
-				handle_error( ErrorType::ExclusiveMax, val, line_num, line_index );
-			} else if ( val > max_val ) {
-				handle_error( ErrorType::Maximum, val, line_num, line_index );
-			}
-		}
-		auto const found_type = loc->find( "type" );
-		if ( found_type != loc->end() && found_type.value() != "number" ) {
-			handle_error( ErrorType::TypeNum, line_num, line_index, loc->at( "type " ).get < std::string >() );
-		}
-	} else if ( parsed.is_string() ) {
-		auto const found_anyOf = loc->find( "anyOf" );
-		if ( found_anyOf != loc->end() ) {
-			size_t i;
-			for ( i = 0; i < found_anyOf->size(); i++ ) {
-				auto const & any_of_check = found_anyOf->at( i );
-				auto const found_type = any_of_check.find( "type" );
-				if ( found_type != any_of_check.end() && found_type.value() == "string" ) {
-					break;
-				}
-			}
-			if ( i == found_anyOf->size() ) {
-				handle_error( ErrorType::AnyOf, line_num, line_index );
-			}
-			return;
-		}
-		auto const found_type = loc->find( "type" );
-		auto const & parsed_string = parsed.get< std::string >();
-		if ( found_type != loc->end() && found_type.value() != "string" && ! parsed_string.empty() ) {
-			std::string const & str = found_type.value();
-			handle_error( ErrorType::TypeStr, line_num, line_index, str );
-		}
-	}
-}
-
 
 namespace EnergyPlus {
 // Module containing the input processor routines
@@ -1438,7 +1130,6 @@ namespace EnergyPlus {
 // Needed for unit tests, should not be normally called.
 	void
 	InputProcessor::clear_state() {
-		state = State();
 		idf_parser = IdfParser();
 		jdf.clear();
 		jdd_jdf_cache_map.clear();
@@ -1446,13 +1137,13 @@ namespace EnergyPlus {
 		echo_stream = nullptr;
 	}
 
-	std::vector < std::string > const & InputProcessor::validation_errors() {
-		return state.validation_errors();
-	}
+//	std::vector < std::string > const & InputProcessor::validation_errors() {
+//		return state.validation_errors();
+//	}
 
-	std::vector < std::string > const & InputProcessor::validation_warnings() {
-		return state.validation_warnings();
-	}
+//	std::vector < std::string > const & InputProcessor::validation_warnings() {
+//		return state.validation_warnings();
+//	}
 
 	std::pair< bool, std::string >
 	InputProcessor::ConvertInsensitiveObjectType( std::string const & objectType ) {
@@ -1568,47 +1259,83 @@ namespace EnergyPlus {
 		// {
 		// 	lines.append(line + NL);
 		// }
-		std::ifstream::pos_type size = input_stream.tellg();
-		char *memblock = new char[(size_t) size + 1];
-		input_stream.seekg(0, std::ios::beg);
-		input_stream.read(memblock, size);
-		memblock[size] = '\0';
-		input_stream.close();
-		std::string input_file = memblock;
-		delete[] memblock;
+//		std::ifstream::pos_type size = input_stream.tellg();
+//		char *memblock = new char[(size_t) size + 1];
+//		input_stream.seekg(0, std::ios::beg);
+//		input_stream.read(memblock, size);
+//		memblock[size] = '\0';
+//		input_stream.close();
+//		std::string input_file = memblock;
+//		delete[] memblock;
+//
+//		json::parser_callback_t cb = []( size_t depth, json::parse_event_t event, json &parsed,
+//		                                                       size_t line_num, size_t line_index) -> bool {
+//			validation_manager.traverse(event, parsed, line_num, line_index, depth );
+//			return true;
+//		};
+//
+//		if ( ! DataGlobals::isJDF ) {
+//			json const input_file_json = InputProcessor::idf_parser.decode( input_file, InputProcessor::schema, cb );
+//			if ( DataGlobals::outputJDFConversion ) {
+//				input_file = input_file_json.dump( 4 );
+//				std::string convertedIDF( outputDirPathName + inputFileNameOnly + ".jdf" );
+//				FileSystem::makeNativePath( convertedIDF );
+//				std::ofstream convertedFS( convertedIDF, std::ofstream::out );
+//				convertedFS << input_file << std::endl;
+//			} else {
+//				input_file = input_file_json.dump( 4 );
+//			}
+//		}
+//
+//
+//
+////		InputProcessor::jdf = json::parse( input_file, cb );
+//
+//		if ( DataGlobals::isJDF && DataGlobals::outputJDFConversion ) {
+//			std::string const encoded = InputProcessor::idf_parser.encode( InputProcessor::jdf, InputProcessor::schema );
+//			std::string convertedJDF( outputDirPathName + inputFileNameOnly + ".idf" );
+//			FileSystem::makeNativePath( convertedJDF );
+//			std::ofstream convertedFS( convertedJDF, std::ofstream::out );
+//			convertedFS << encoded << std::endl;
+//		}
 
-		InputProcessor::state.initialize( & InputProcessor::schema );
-		json::parser_callback_t cb = []( size_t EP_UNUSED( depth ), json::parse_event_t event, json &parsed, size_t line_num, size_t line_index ) -> bool {
-			InputProcessor::state.traverse( event, parsed, line_num, line_index );
+		ValidationManager VManager( & InputProcessor::schema );
+
+		json::parser_callback_t cb = [ & VManager ]( size_t depth, json::parse_event_t event, json &parsed,
+		                                                       size_t line_num, size_t line_index) -> bool {
+			VManager.traverse(event, parsed, line_num, line_index, depth );
 			return true;
 		};
 
 		if ( ! DataGlobals::isJDF ) {
-			json const input_file_json = InputProcessor::idf_parser.decode( input_file, InputProcessor::schema, cb );
+			std::ifstream::pos_type size = input_stream.tellg();
+			char *memblock = new char[(size_t) size + 1];
+			input_stream.seekg(0, std::ios::beg);
+			input_stream.read(memblock, size);
+			memblock[size] = '\0';
+			input_stream.close();
+			std::string input_file = memblock;
+			delete[] memblock;
+
+			InputProcessor::jdf = InputProcessor::idf_parser.decode(input_file, InputProcessor::schema, cb);
+			if (DataGlobals::outputJDFConversion) {
+				std::string convertedIDF(outputDirPathName + inputFileNameOnly + ".jdf");
+				FileSystem::makeNativePath(convertedIDF);
+				std::ofstream convertedFS(convertedIDF, std::ofstream::out);
+				convertedFS << InputProcessor::jdf.dump(4) << std::endl;
+			}
+		} else {
+			InputProcessor::jdf = json::parse(input_stream, cb);
 			if ( DataGlobals::outputJDFConversion ) {
-				input_file = input_file_json.dump( 4 );
-				std::string convertedIDF( outputDirPathName + inputFileNameOnly + ".jdf" );
-				FileSystem::makeNativePath( convertedIDF );
-				std::ofstream convertedFS( convertedIDF, std::ofstream::out );
-				convertedFS << input_file << std::endl;
-			} else {
-				input_file = input_file_json.dump( 4 );
+				std::string const encoded = InputProcessor::idf_parser.encode( InputProcessor::jdf, InputProcessor::schema );
+				std::string convertedJDF( outputDirPathName + inputFileNameOnly + ".idf" );
+				FileSystem::makeNativePath( convertedJDF );
+				std::ofstream convertedFS( convertedJDF, std::ofstream::out );
+				convertedFS << encoded << std::endl;
 			}
 		}
 
-
-
-//		InputProcessor::jdf = json::parse( input_file, cb );
-
-		if ( DataGlobals::isJDF && DataGlobals::outputJDFConversion ) {
-			std::string const encoded = InputProcessor::idf_parser.encode( InputProcessor::jdf, InputProcessor::schema );
-			std::string convertedJDF( outputDirPathName + inputFileNameOnly + ".idf" );
-			FileSystem::makeNativePath( convertedJDF );
-			std::ofstream convertedFS( convertedJDF, std::ofstream::out );
-			convertedFS << encoded << std::endl;
-		}
-
-		auto const num_errors = InputProcessor::state.print_errors();
+		auto const num_errors = VManager.print_errors();
 		if ( num_errors ) {
 			ShowFatalError( "Errors occurred on processing input file. Preceding condition(s) cause termination." );
 		}

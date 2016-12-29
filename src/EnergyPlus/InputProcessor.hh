@@ -208,6 +208,7 @@ public:
 	ValidationManager( json const * schema );
 	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index, size_t depth );
 	size_t print_errors();
+	void clear_state();
 
 protected:
 	void object_start();
@@ -221,74 +222,15 @@ protected:
 	Validator validator;
 };
 
-
-
-
-
-
-class State {
-public:
-	enum class ErrorType {
-		ExclusiveMin = 0, Minimum = 1, ExclusiveMax = 2, Maximum = 3, ParametricPreproc = 4, ExpandObj = 5,
-		KeyNotFound = 6, ReqExtension = 7, ReqField = 8, ReqObj = 9, MinProperties = 10, MaxProperties = 11,
-		EnumStr = 12, EnumNum = 13, TypeStr = 14, TypeNum = 15, AnyOf = 16
-	};
-
-	void initialize( json const * parsed_schema );
-
-	void traverse( json::parse_event_t & event, json & parsed, size_t line_num, size_t line_index );
-
-	void validate( json & parsed, size_t line_num, size_t line_index );
-
-	size_t print_errors();
-
-	void handle_error( ErrorType err, size_t line_num, size_t line_index );
-
-	void handle_error( ErrorType err, double val, size_t line_num, size_t line_index );
-
-	void handle_error( ErrorType err, size_t line_num, size_t line_index, std::string const & str );
-
-	std::vector < std::string > const & validation_errors();
-
-	std::vector < std::string > const & validation_warnings();
-
-protected:
-	friend class Object;
-	json const * schema;
-	std::vector < json const * > stack;
-	std::unordered_map < std::string, bool > obj_required;
-	std::unordered_map < std::string, bool > extensible_required;
-	std::unordered_map < std::string, bool > root_required;
-	char s[ 129 ], s2[ 129 ];
-
-	size_t prev_key_len = 0, prev_line_index = 0, cur_obj_count = 0;
-	std::string cur_obj_name = "";
-	bool is_in_extensibles = false;
-	bool does_key_exist = true;
-	bool need_new_object_name = true;
-	json::parse_event_t last_seen_event = json::parse_event_t::object_start;
-
-	std::vector < std::string > errors, warnings;
-};
-
 namespace EnergyPlus {
 
 	class InputProcessor {
 	public:
 		friend class EnergyPlusFixture;
 		friend class InputProcessorFixture;
-		friend class JdfValidator;
-
-		static
-		std::vector < std::string > const &
-		validation_errors();
-
-		static
-		std::vector < std::string > const &
-		validation_warnings();
+		friend class ValidationManager;
 
 		static IdfParser idf_parser;
-		static State state;
 		static json schema;
 		static json jdf;
 		static std::unordered_map < std::string, std::string > case_insensitive_object_map;

@@ -87,14 +87,6 @@ namespace EnergyPlus {
 			return EnergyPlusFixture::process_idd( idd, errors_found );
 		}
 
-		std::vector < std::string > const & validation_errors() {
-			return InputProcessor::validation_errors();
-		}
-
-		std::vector < std::string > const & validation_warnings() {
-			return InputProcessor::validation_warnings();
-		}
-
 		std::string encodeIDF() {
 			return InputProcessor::idf_parser.encode(InputProcessor::jdf, InputProcessor::schema);
 		}

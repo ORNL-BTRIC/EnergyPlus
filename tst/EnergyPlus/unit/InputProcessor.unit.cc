@@ -86,18 +86,9 @@ namespace EnergyPlus {
             }
 		})";
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
+		json::parse(jdf_str, call_back);
+		EnergyPlusFixture::ValiManager->print_errors();
 
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-
-		VM.print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 4 (index 0) - MemeSupremeWhippedCream"
 				            " is not in the enum of possible values for this field\n   **   ~~~   ** Validation: In object"
 				            " Zone at line number 8 (index 0) - AuToCaLcUlAtE is not in the enum of possible values for this"
@@ -125,18 +116,9 @@ namespace EnergyPlus {
             }
 		})";
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
+		json::parse( jdf_str, call_back );
+		ValiManager->print_errors();
 
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-
-		VM.print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object Zone at line number 6 (index 0) - Out of range value"
 				                    " -13.0 is less than the minimum\n   **   ~~~   ** Validation: In object Zone at line"
 				                    " number 7 (index 0) - Out of range value 9001.0 is greater than the maximum\n   **   "
@@ -148,18 +130,8 @@ namespace EnergyPlus {
 
 	TEST_F( InputProcessorFixture, ValidationEmptyRootObject ) {
 		std::string jdf_str = R"({})";
-
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-		VM.print_errors();
+		json::parse(jdf_str, call_back);
+		ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object  at line number 1 (index 0) - Object was empty\n",
 		                    true );
 	}
@@ -176,17 +148,8 @@ namespace EnergyPlus {
 			}
 		})";
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-		VM.print_errors();
+		json::parse(jdf_str, call_back);
+		ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object  at line number 2 (index 0) - Key  not found in schema\n",
 		                    true );
 	}
@@ -212,18 +175,8 @@ namespace EnergyPlus {
 			}
 		})";
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-
-		VM.print_errors();
+		json::parse(jdf_str, call_back);
+		ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 15 (index 0) - Maximum "
 				                    "properties was exceeded\n   **   ~~~   ** Validation: In object ROOT at line number"
 				                    " 16 (index 0) - Required field Building was not provided\n",
@@ -307,18 +260,9 @@ namespace EnergyPlus {
             }
 		})";
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
+		json::parse(jdf_str, call_back);
+		ValiManager->print_errors();
 
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf_str, cb);
-
-		VM.print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 36 (index 0)"
 				                    " - Duplicate key Zn001:Flr001 was found\n   **   ~~~   ** Validation: In object "
 				                    "GlobalGeometryRules at line number 49 (index 0) - Duplicate key "
@@ -391,18 +335,8 @@ namespace EnergyPlus {
 						}
 				};
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                     size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf.dump(2), cb);
-
-		VM.print_errors();
+		json::parse(jdf.dump(2), call_back);
+		ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object Building at line number 2 (index 0) - Object was "
 				                    "empty\n   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line "
 				                    "number 7 (index 0) - Object was empty\n   **   ~~~   ** Validation: In object "
@@ -458,21 +392,11 @@ namespace EnergyPlus {
 						}
 				};
 
-		json const * ptr = & InputProcessor::schema;
-		ValidationManager VM( ptr );
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                size_t line_index) -> bool {
-			VM.traverse(event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf.dump(2), cb);
-
-		VM.print_errors();
+		json::parse(jdf.dump(2), call_back);
+		ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object ROOT at line number 37 (index 0)"
 		                    " - Required field Building was not provided\n   **   ~~~   ** Validation: In object "
-		"ROOT at line number 37 (index 0) - Required field GlobalGeometryRules was not provided\n",
+				            "ROOT at line number 37 (index 0) - Required field GlobalGeometryRules was not provided\n",
 		                    true );
 	}
 
@@ -512,19 +436,8 @@ namespace EnergyPlus {
 						}
 				};
 
-		json const * ptr = & InputProcessor::schema;
-
-		ValidationManager VM( ptr );
-
-
-		json::parser_callback_t cb = [ &VM ](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
-		                                         size_t line_index) -> bool {
-			VM.traverse( event, parsed, line_num, line_index, depth );
-			return true;
-		};
-
-		json::parse(jdf.dump(2), cb);
-		VM.print_errors();
+		json::parse(jdf.dump(2), call_back);
+		ValiManager->print_errors();
 		compare_err_stream("   **   ~~~   ** Validation: In object GlobalGeometryRules at line number 19 (index 0) - "
 				                   "Required field starting_vertex_position was not provided\n   **   ~~~   ** "
 				                   "Validation: In object GlobalGeometryRules at line number 19 (index 0) - "
@@ -773,8 +686,7 @@ namespace EnergyPlus {
 				}
 			}
 		}
-		auto const & errors = validation_errors();
-		EXPECT_EQ(errors.size(), 0ul);
+		compare_err_stream( " blah ", true );
 	}
 
 
@@ -992,9 +904,8 @@ namespace EnergyPlus {
 			}
 		}
 		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size() + warnings.size(), 0ul);
+		auto const errors = EnergyPlusFixture::ValiManager->print_errors();
+		EXPECT_EQ(errors, 0ul);
 		EXPECT_TRUE(success);
 	}
 
@@ -1174,9 +1085,8 @@ namespace EnergyPlus {
 		}
 
 		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size() + warnings.size(), 0ul);
+		auto const errors = EnergyPlusFixture::ValiManager->print_errors();
+		EXPECT_EQ(errors, 0ul);
 	}
 
 
@@ -1227,9 +1137,8 @@ namespace EnergyPlus {
 				}));
 
 		ASSERT_TRUE( process_idf( idf ) );
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		EXPECT_EQ(errors.size() + warnings.size(), 0ul);
+		auto const errors = EnergyPlusFixture::ValiManager->print_errors();
+		EXPECT_EQ(errors, 0ul);
 	}
 
 
@@ -1732,14 +1641,7 @@ namespace EnergyPlus {
 		};
 
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		for ( auto const & s : errors ) {
-			ShowContinueError( s );
-		}
-		for ( auto const & s : warnings ) {
-			ShowContinueError( s );
-		}
+		EnergyPlusFixture::ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 23 (index 0)"
 				                    " - Key non_existent_field_1 not found in schema\n   **   ~~~   ** Validation: In object "
 				                    "BuildingSurface:Detailed at line number 24 (index 0) - Key non_existent_field_2 not found in schema\n",
@@ -1813,14 +1715,7 @@ namespace EnergyPlus {
 		};
 
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		for ( auto const & s : errors ) {
-			ShowContinueError( s );
-		}
-		for ( auto const & s : warnings ) {
-			ShowContinueError( s );
-		}
+		EnergyPlusFixture::ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object BuildingSurface:Detailed at line number 18 (index 0)"
 				                    " - Required extensible field vertex_y_coordinate was not provided\n   **   ~~~   **"
 				                    " Validation: In object BuildingSurface:Detailed at line number 18 (index 0) - "
@@ -1894,14 +1789,7 @@ namespace EnergyPlus {
 			},
 		};
 		json::parse(root.dump(2), EnergyPlusFixture::call_back);
-		auto const & errors = validation_errors();
-		auto const & warnings = validation_warnings();
-		for ( auto const & s : errors ) {
-			ShowContinueError( s );
-		}
-		for ( auto const & s : warnings ) {
-			ShowContinueError( s );
-		}
+		EnergyPlusFixture::ValiManager->print_errors();
 		compare_err_stream( "   **   ~~~   ** Validation: In object Building at line number 4 (index 0) - Out of range value "
 				                    "0.0 is less than or equal to the minimum\n   **   ~~~   ** Validation: In object Building "
 				                    "at line number 6 (index 0) - Out of range value -123.456 is less than or equal to the minimum\n   **   ~~~   ** "

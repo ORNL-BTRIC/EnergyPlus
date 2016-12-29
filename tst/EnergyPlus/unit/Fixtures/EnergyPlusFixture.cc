@@ -226,13 +226,14 @@
 #include <fstream>
 #include <algorithm>
 
-json::parser_callback_t EnergyPlus::EnergyPlusFixture::call_back = [](size_t EP_UNUSED( depth ), json::parse_event_t event, json &parsed,
-									   size_t line_num, size_t line_index) -> bool {
-	EnergyPlus::InputProcessor::state.traverse(event, parsed, line_num, line_index);
-	return true;
-};
 
 namespace EnergyPlus {
+	ValidationManager * EnergyPlusFixture::ValiManager =  new ValidationManager( & InputProcessor::schema );
+	json::parser_callback_t EnergyPlusFixture::call_back = [](size_t depth, json::parse_event_t event, json &parsed, size_t line_num,
+	                                                                       size_t line_index) -> bool {
+		ValiManager->traverse(event, parsed, line_num, line_index, depth );
+		return true;
+	};
 
 	void EnergyPlusFixture::SetUpTestCase() {
 		bool errors_found = false;
@@ -249,6 +250,8 @@ namespace EnergyPlus {
 			for ( char & c : key ) c = toupper( c );
 			InputProcessor::case_insensitive_object_map.emplace( std::move( key ), it.key() );
 		}
+
+		ValiManager = new ValidationManager( & InputProcessor::schema );
 	}
 
 	void EnergyPlusFixture::SetUp() {
@@ -275,8 +278,6 @@ namespace EnergyPlus {
 		UtilityRoutines::outputErrorHeader = false;
 
 		Psychrometrics::InitializePsychRoutines();
-
-		InputProcessor::state.initialize( & InputProcessor::schema );
 	}
 
 	void EnergyPlusFixture::TearDown() {
@@ -303,6 +304,8 @@ namespace EnergyPlus {
 
 	void EnergyPlusFixture::clear_all_states()
 	{
+		ValiManager->clear_state();
+
 		// A to Z order
 		AirflowNetworkBalanceManager::clear_state();
 		BaseboardElectric::clear_state();
@@ -604,7 +607,7 @@ namespace EnergyPlus {
 		InputProcessor::InitializeMaps();
 		InputProcessor::InitFiles();
 		SimulationManager::PostIPProcessing();
-		InputProcessor::state.print_errors();
+		ValiManager->print_errors();
 
 		return true;
 	}
