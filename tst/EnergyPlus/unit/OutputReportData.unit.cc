@@ -345,3 +345,66 @@ TEST_F( EnergyPlusFixture, OutputReportData_Regex_Brackets )
 	OnTheList = FindItemInVariableList( "Any Node", "Zone Air System Sensible Heating Rate" );
 	EXPECT_NE(true, OnTheList);
 }
+
+TEST_F( EnergyPlusFixture, OutputReportData_Regex_SpecChars )
+{
+	std::string const idf_objects = delimited_string({
+			                                                 "Version,8.6;",
+			                                                 " Output:Variable,", "\\w,", "System Node Mass Flow Rate,", "timestep;",
+
+	                                                 });
+	ASSERT_TRUE( process_idf( idf_objects ) );
+	//bool OnTheList;
+
+	EXPECT_EQ( (int)OutputVariablesNames.size(), 1);
+	EXPECT_EQ( (int)OutputVariablesForSimulation.size(), 1);
+
+//	OnTheList = FindItemInVariableList( "SalesFloor Inlet Node", "System Node Mass Flow Rate" );
+//	EXPECT_NE(true, OnTheList);
+}
+
+TEST_F( EnergyPlusFixture, OutputReportData_Regex_Carrot )
+{
+	std::string const idf_objects = delimited_string({
+			                                                 "Version,8.6;",
+			                                                 " Output:Variable,", "^Inlet(.*)Node,", "System Node Mass Flow Rate,", "timestep;",
+			                                                 " Output:Variable,", "[^0-9]+,", "System Node Humidity Ratio,", "timestep;",
+
+	                                                 });
+	ASSERT_TRUE( process_idf( idf_objects ) );
+	bool OnTheList;
+
+	EXPECT_EQ( (int)OutputVariablesNames.size(), 2);
+	EXPECT_EQ( (int)OutputVariablesForSimulation.size(), 2);
+
+	OnTheList = FindItemInVariableList( "SalesFloor Inlet Node", "System Node Mass Flow Rate" );
+	EXPECT_NE(true, OnTheList);
+	OnTheList = FindItemInVariableList( "Inlet Node", "System Node Mass Flow Rate" );
+	EXPECT_EQ(true, OnTheList);
+	OnTheList = FindItemInVariableList( "Inlet System Node", "System Node Mass Flow Rate" );
+	EXPECT_EQ(true, OnTheList);
+	OnTheList = FindItemInVariableList( "SalesFloor1", "System Node Humidity Ratio" );
+	EXPECT_NE(true, OnTheList);
+	OnTheList = FindItemInVariableList( "SalesFloor", "System Node Humidity Ratio" );
+	EXPECT_EQ(true, OnTheList);
+}
+
+TEST_F( EnergyPlusFixture, OutputReportData_Regex_Dollar )
+{
+	std::string const idf_objects = delimited_string({
+			                                                 "Version,8.6;",
+			                                                 " Output:Variable,", "(.*)Node$,", "System Node Mass Flow Rate,", "timestep;",
+	                                                 });
+	ASSERT_TRUE( process_idf( idf_objects ) );
+	bool OnTheList;
+
+	EXPECT_EQ( (int)OutputVariablesNames.size(), 1);
+	EXPECT_EQ( (int)OutputVariablesForSimulation.size(), 1);
+
+	OnTheList = FindItemInVariableList( "SalesFloor Inlet Node", "System Node Mass Flow Rate" );
+	EXPECT_EQ(true, OnTheList);
+	OnTheList = FindItemInVariableList( "Outlet Node", "System Node Mass Flow Rate" );
+	EXPECT_EQ(true, OnTheList);
+	OnTheList = FindItemInVariableList( "Inlet Node1 ", "System Node Mass Flow Rate" );
+	EXPECT_NE(true, OnTheList);
+}

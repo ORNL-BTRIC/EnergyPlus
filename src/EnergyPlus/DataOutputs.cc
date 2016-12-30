@@ -156,6 +156,7 @@ namespace DataOutputs {
 
 		bool InVariableList = false;
 		int Found = 0;
+		// previously case-insensitive search was done
 		auto const FirstIndex = OutputVariablesNames.find(VariableName);
 
 		if ( FirstIndex != OutputVariablesNames.end() ) Found = FirstIndex->second;
