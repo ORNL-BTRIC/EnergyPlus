@@ -156,8 +156,10 @@ namespace DataOutputs {
 
 		bool InVariableList = false;
 		int Found = 0;
+		std::string LowerCaseVarName;
 		// previously case-insensitive search was done
-		auto const FirstIndex = OutputVariablesNames.find(VariableName);
+		ConvertCaseToLower( VariableName, LowerCaseVarName);
+		auto const FirstIndex = OutputVariablesNames.find( LowerCaseVarName );
 
 		if ( FirstIndex != OutputVariablesNames.end() ) Found = FirstIndex->second;
 			if ( Found != 0 ) {
@@ -172,7 +174,7 @@ namespace DataOutputs {
 						break;
 					}
 					regex_search KeySearch( KeyRegex );
-					if ( KeySearch.Match( KeyedValue.c_str()) || equali( KeyedValue, OutputVariablesForSimulation( Found ).Key) ) { //need to resolve lower/uppercase
+					if ( KeySearch.Match( KeyedValue.c_str()) || equali( KeyedValue, OutputVariablesForSimulation( Found ).Key) ) {
 						InVariableList = true;
 						break;
 					}
