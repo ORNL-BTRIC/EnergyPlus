@@ -157,7 +157,7 @@ namespace DataOutputs {
 		bool InVariableList = false;
 		int Found = 0;
 		std::string LowerCaseVarName;
-		// previously case-insensitive search was done
+		// case-insensitive search
 		ConvertCaseToLower( VariableName, LowerCaseVarName);
 		auto const FirstIndex = OutputVariablesNames.find( LowerCaseVarName );
 
