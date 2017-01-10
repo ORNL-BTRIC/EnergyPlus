@@ -138,7 +138,6 @@ private:
 	size_t cur_line_num = 1;
 	size_t index_into_cur_line = 0;
 	size_t beginning_of_line_index = 0;
-	bool possible_regex_on = false;
 	char s[ 129 ];
 };
 

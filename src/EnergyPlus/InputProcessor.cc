@@ -505,20 +505,10 @@ std::string IdfParser::parse_string( std::string const & idf, size_t & index, bo
 
 		c = idf[ index ];
 		increment_both_index( index, index_into_cur_line );
-		if (c == '{') {
-			possible_regex_on = true;
-			s += c;
-		}else if(c == '}'){
-			possible_regex_on = false;
-			s += c;
-		}else if ( c == ',' ) {
-			if (possible_regex_on){
-				s += c;
-			}else {
-				complete = true;
-				decrement_both_index(index, index_into_cur_line);
-				break;
-			}
+		if ( c == ',' ) {
+			complete = true;
+			decrement_both_index(index, index_into_cur_line);
+			break;
 		} else if ( c == ';' ) {
 			complete = true;
 			decrement_both_index( index, index_into_cur_line );
