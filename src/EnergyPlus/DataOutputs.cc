@@ -162,7 +162,7 @@ namespace DataOutputs {
 		auto const FirstIndex = OutputVariablesNames.find( LowerCaseVarName );
 
 		if ( FirstIndex != OutputVariablesNames.end() ) Found = FirstIndex->second;
-			if ( Found != 0 ) {
+		if ( Found != 0 ) {
 			do{
 				if ( OutputVariablesForSimulation( Found ).Key == "*" ) {
 					InVariableList = true;
