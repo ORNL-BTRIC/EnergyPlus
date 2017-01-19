@@ -257,6 +257,14 @@ void ValidationManager::key( std::string const & key, std::tuple< size_t, size_t
 		validator.check_valid_key( key, num_index_depth );
 	}
 	validator.check_duplicate_key( key, num_index_depth );
+
+//	if ( ! EnergyPlus::DataGlobals::isJDF ) {
+//		if ( depth != static_cast< size_t >( Validator::Depth::EPlusObj ) ) {
+//			validator.check_duplicate_key(key, num_index_depth);
+//		}
+//	} else {
+//		validator.check_duplicate_key(key, num_index_depth);
+//	}
 }
 
 void ValidationManager::value( json const & val, std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
@@ -297,7 +305,7 @@ void Validator::check_val_in_enum( json const & val, std::tuple< size_t, size_t,
 	auto const & array = stack.back()->at( "enum" );
 	for ( auto const & v : array ) {
 		if ( ( val.is_string() && val.get< std::string >() == v )
-			|| ( val.is_number() && val.get< int >() == static_cast< int >( v ) ) ) {
+		     || ( val.is_number() && val.get< int >() == static_cast< int >( v ) ) ) {
 			return;
 		}
 	}
@@ -365,6 +373,7 @@ void Validator::update_obj_name( std::string const & key, std::tuple< size_t, si
 	} else if ( key.find( "Parametric:" ) != std::string::npos ) {
 		EHandler->handle_error( ErrorHandler::ErrorType::ParametricPreproc, num_index_depth );
 	}
+	names[ static_cast< size_t >( Validator::Depth::NamedEplusObj ) ].clear();
 }
 
 void Validator::check_duplicate_key( std::string const & key,
@@ -395,8 +404,15 @@ void Validator::check_obj_requirements( std::tuple< size_t, size_t, size_t > con
 
 	check_required_fields( num_index_depth );
 	check_properties( num_index_depth );
-
 	names[ depth ].clear();
+
+//	if ( ! EnergyPlus::DataGlobals::isJDF ) {
+//		if ( depth != static_cast< size_t >( Validator::Depth::NamedEplusObj ) ) {
+//			names[ depth ].clear();
+//		}
+//	} else {
+//		names[ depth ].clear();
+//	}
 }
 
 void Validator::check_required_fields( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
@@ -419,7 +435,7 @@ void Validator::check_required_fields( std::tuple< size_t, size_t, size_t > cons
 void Validator::check_properties( std::tuple< size_t, size_t, size_t > const & num_index_depth ) {
 	size_t const depth = std::get< 2 > ( num_index_depth );
 	if ( depth == 0 ) {
-		return;
+		return; // end of file, there are no minProperties or maxProperties here
 	}
 	auto const & location = stack[ stack.size() - 3 ];
 
@@ -573,11 +589,10 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
 			if ( cb ) {
-				auto obj = json::basic_json( obj_name );
-				cb( depth, json::parse_event_t::key, obj, line_num, line_index );
-				// TODO, removed the above callback because it is 100% VALID in IDF, for example:
-				// BuildingSurface:Detailed, field 1, 2, ..., n;  BuildingSurface:Detailed, field 1, 2, ... n;
-				// BuildingSurface:Detailed is would register as a parse_event_key but they are duplicated normally
+				auto obj = json::basic_json(obj_name);
+				cb(depth, json::parse_event_t::key, obj, line_num, line_index);
+				// TODO BuildingSurface:Detailed, field 1, 2, ... n;  BuildingSurface:Detailed, field 1, 2, ... n;
+				// BuildingSurface:Detailed will register as a duplicate key but this is just how the idf format works
 				cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 			}
 			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, cb );
@@ -1137,6 +1152,7 @@ namespace EnergyPlus {
 // Needed for unit tests, should not be normally called.
 	void
 	InputProcessor::clear_state() {
+//		DataGlobals::isJDF = true;
 		idf_parser = IdfParser();
 		jdf.clear();
 		jdd_jdf_cache_map.clear();
@@ -1324,7 +1340,9 @@ namespace EnergyPlus {
 			std::string input_file = memblock;
 			delete[] memblock;
 
-			InputProcessor::jdf = InputProcessor::idf_parser.decode(input_file, InputProcessor::schema, cb);
+//			InputProcessor::jdf = InputProcessor::idf_parser.decode(input_file, InputProcessor::schema, cb);
+			InputProcessor::jdf = InputProcessor::idf_parser.decode( input_file, InputProcessor::schema );
+			json::parse( InputProcessor::jdf.dump(), cb ); // dump to string and validate
 			if (DataGlobals::outputJDFConversion) {
 				std::string convertedIDF(outputDirPathName + inputFileNameOnly + ".jdf");
 				FileSystem::makeNativePath(convertedIDF);

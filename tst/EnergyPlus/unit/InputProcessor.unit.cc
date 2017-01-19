@@ -69,6 +69,56 @@
 #include "Fixtures/InputProcessorFixture.hh"
 
 namespace EnergyPlus {
+	TEST_F( InputProcessorFixture, idfNoErrors ) {
+		std::string const idf(delimited_string(
+				{
+						"BuildingSurface:Detailed,",
+						"Zn009:Flr001,            !- Name",
+						"    Floor,                   !- Surface Type",
+						"    FLOOR38,                 !- Construction Name",
+						"    SCWINDOW,                !- Zone Name",
+						"    Surface,                 !- Outside Boundary Condition",
+						"    Zn009:Flr001,            !- Outside Boundary Condition Object",
+						"    NoSun,                   !- Sun Exposure",
+						"    NoWind,                  !- Wind Exposure",
+						"    1.000000,                !- View Factor to Ground",
+						"    4,                       !- Number of Vertices",
+						"    10.00000,0.000000,0,  !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,  !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,  !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;  !- X,Y,Z ==> Vertex 4 {m}",
+						"BuildingSurface:Detailed,",
+						"Zn010:Flr002,            !- Name",
+						"    Floor,                   !- Surface Type",
+						"    FLOOR38,                 !- Construction Name",
+						"    SCWINDOW,                !- Zone Name",
+						"    Surface,                 !- Outside Boundary Condition",
+						"    Zn009:Flr001,            !- Outside Boundary Condition Object",
+						"    NoSun,                   !- Sun Exposure",
+						"    NoWind,                  !- Wind Exposure",
+						"    1.000000,                !- View Factor to Ground",
+						"    4,                       !- Number of Vertices",
+						"    10.00000,0.000000,0,  !- X,Y,Z ==> Vertex 1 {m}",
+						"    0.000000,0.000000,0,  !- X,Y,Z ==> Vertex 2 {m}",
+						"    0.000000,10.00000,0,  !- X,Y,Z ==> Vertex 3 {m}",
+						"    10.00000,10.00000,0;  !- X,Y,Z ==> Vertex 4 {m}",
+						"  Building,",
+						"    Ref Bldg Medium Office New2004_v1.3_5.0,  !- Name",
+						"    0.0000,                  !- North Axis {deg}",
+						"    City,                    !- Terrain",
+						"    0.0400123456789123,                  !- Loads Convergence Tolerance Value",
+						"    0.2000,                  !- Temperature Convergence Tolerance Value {deltaC}",
+						"    FullInteriorAndExterior, !- Solar Distribution",
+						"    25,                      !- Maximum Number of Warmup Days",
+						"    6;",
+				}));
+
+		ASSERT_TRUE( process_idf( idf ) );
+
+		compare_err_stream( "",
+		                    true );
+	}
+
 	TEST_F( InputProcessorFixture, ValidationStringsTypes ) {
 		std::string jdf_str =
 		R"({
