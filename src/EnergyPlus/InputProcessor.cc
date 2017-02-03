@@ -171,7 +171,10 @@ void ErrorHandler::handle_error( ErrorType err, std::tuple< size_t, size_t, size
 			errors.push_back( err_str + " The wrong type was parsed here, the schema calls for type " + str );
 			break;
 		case ErrorType::DuplicateKey:
-			errors.push_back( err_str + " Duplicate key " + str + " was found" );
+			if ( ! EnergyPlus::DataGlobals::isJDF
+			     && std::get< 2 >( num_index_depth ) != static_cast< unsigned >( Validator::Depth::EPlusObj ) )  {
+				errors.push_back( err_str + " Duplicate key " + str + " was found" );
+			}
 			break;
 		default:
 			errors.push_back( err_str + " handle_error() was called with the incorrect arguments for this error");
@@ -589,6 +592,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
 			if ( cb ) {
+				depth = 1;
 				auto obj = json::basic_json(obj_name);
 				cb(depth, json::parse_event_t::key, obj, line_num, line_index);
 				// TODO BuildingSurface:Detailed, field 1, 2, ... n;  BuildingSurface:Detailed, field 1, 2, ... n;
@@ -597,7 +601,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 			}
 			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, cb );
 			if ( cb ) {
-				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
+//				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 				cb( --depth, json::parse_event_t::object_end, null_json, line_num, line_index );
 			}
 			if ( !success ) {
@@ -773,7 +777,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 					if ( legacy_idd_index == 0 ) {
 						// TODO Nameless objects get handled elsewhere, but that may not be a good thing
 						// this is where the callback for checking key duplication would go, but it would fail in the current setup
-						// cb( depth, json::parse_event_t::key, empty_str_json, line_num, line_index );
+						cb( depth, json::parse_event_t::key, empty_str_json, line_num, line_index );
 						cb( depth++, json::parse_event_t::object_start, null_json, line_num, line_index );
 					}
 					json key = field;
@@ -791,6 +795,9 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			cb( --depth, json::parse_event_t::array_end, null_json, line_num, line_index );
 		}
 	}
+//	if ( cb && root.find( "name" ) != root.end() ) {
+	cb( depth--, json::parse_event_t::object_end, null_json, line_num, line_index );
+//	}
 	return root;
 }
 
@@ -1152,7 +1159,7 @@ namespace EnergyPlus {
 // Needed for unit tests, should not be normally called.
 	void
 	InputProcessor::clear_state() {
-//		DataGlobals::isJDF = true;
+		DataGlobals::isJDF = true;
 		idf_parser = IdfParser();
 		jdf.clear();
 		jdd_jdf_cache_map.clear();
