@@ -71,11 +71,37 @@
 #include <EnergyPlus.hh>
 #include <DataGlobals.hh>
 #include <UtilityRoutines.hh>
+#include <unordered_set>
 
 using json = nlohmann::json;
 
+
 class IdfParser {
 public:
+
+	class Node {
+	public:
+		Node() { }
+
+		Node( size_t line_num, size_t line_index ) {
+			this->line_num = line_num;
+			this->line_index = line_index;
+		}
+
+		Node( size_t line_num, size_t line_index, json::const_iterator iter ) {
+			this->line_num = line_num;
+			this->line_index = line_index;
+			this->iter = iter;
+		}
+
+		std::vector < class Node > adj;
+		json::const_iterator iter;
+		size_t line_num;
+		size_t line_index;
+	};
+
+	std::unordered_map< std::string, Node > nodeList;
+
 	json decode( std::string const & idf, json const & schema );
 
 	json decode( std::string const & idf, json const & schema, bool & success );
@@ -88,8 +114,8 @@ public:
 
 	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema );
 
-	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
-								json const & obj_loc );
+	void parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
+								json const & obj_loc, json & root );
 
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
@@ -123,11 +149,14 @@ public:
 private:
 	friend class InputProcessorFixture;
 
+	std::string * cur_object_name = nullptr;
+	Node parseObjNode;
 	size_t cur_line_num = 1;
 	size_t index_into_cur_line = 0;
 	size_t beginning_of_line_index = 0;
 	char s[ 129 ];
 };
+
 
 class State {
 public:

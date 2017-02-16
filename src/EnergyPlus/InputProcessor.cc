@@ -207,9 +207,14 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				continue;
 			}
 
+			cur_object_name = & obj_name;
+			Node storeLineNumber( cur_line_num, index_into_cur_line );
+			parseObjNode = Node( cur_line_num, index_into_cur_line );
+
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
-			json obj = parse_object( idf, index, success, legacy_idd, obj_loc );
+			json obj = json::object();
+			parse_object( idf, index, success, legacy_idd, obj_loc, obj );
 			if ( !success ) print_out_line_error( idf, true );
 			u64toa( root[ obj_name ].size() + 1, s );
 			std::string name = obj_name + " " + s;
@@ -227,16 +232,49 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				}
 			}
 
-			root[ obj_name ][ name ] = std::move( obj );
+//			root[ obj_name ][ name ] = std::move( obj );
+			root[ obj_name ][ name ] = obj;
+
+			auto iter = nodeList.find( obj_name );
+			if ( iter == nodeList.end() ) {
+				storeLineNumber.iter = root.find( obj_name );
+				nodeList.insert( { obj_name, storeLineNumber } );
+				iter = nodeList.find( obj_name );
+			}
+
+			parseObjNode.iter = root[ obj_name ].find( name );
+			Node copy = Node( parseObjNode.line_num, parseObjNode.line_index, parseObjNode.iter );
+			copy.adj = parseObjNode.adj;
+
+			iter->second.adj.push_back( copy );
+
+			for ( auto const & n : nodeList ) {
+				auto const & ePlusName = n.first;
+
+				auto const & node = n.second;
+				auto const & ObjName = node.iter.key();
+
+				for ( auto const & v : node.adj ) {
+					auto const & nameIn = v.iter.key();
+					auto const & valIn = v.iter.value();
+
+					for ( auto const & k : v.adj ) {
+						auto const iterCpy = k.iter;
+						std::string key = iterCpy.key();
+						auto const & val = k.iter.value();
+					}
+				}
+			}
 		}
 	}
+
 
 	return root;
 }
 
-json IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
-							  json const & legacy_idd, json const & schema_obj_loc ) {
-	json root = json::object();
+void IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
+							  json const & legacy_idd, json const & schema_obj_loc, json & root ) {
+//	json root = json::object();
 	json extensible = json::object();
 	json array_of_extensions = json::array();
 	Token token;
@@ -266,9 +304,9 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		token = look_ahead( idf, index );
 		if ( token == Token::NONE ) {
 			success = false;
-			return root;
+			return; //root;
 		} else if ( token == Token::END ) {
-			return root;
+			return;// root;
 		} else if ( token == Token::COMMA || token == Token::SEMICOLON ) {
 			if ( !was_value_parsed ) {
 				int ext_size = 0;
@@ -310,7 +348,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		} else if ( legacy_idd_index >= legacy_idd_fields_array.size() ) {
 			if ( legacy_idd_extensibles_iter == legacy_idd.end() ) {
 				success = false;
-				return root;
+				return;// root;
 			}
 			auto const & legacy_idd_extensibles_array = legacy_idd_extensibles_iter.value();
 			auto const size = legacy_idd_extensibles_array.size();
@@ -330,6 +368,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			if ( find_field_iter == schema_obj_props.end() ) {
 				if ( field == "name" ) {
 					root[ field ] = parse_string( idf, index, success );
+					continue;
 				} else {
 					u64toa( cur_line_num, s );
 					EnergyPlus::ShowWarningMessage( "Field " + field + " was not found at line " + s );
@@ -338,14 +377,32 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
 				root[ field ] = std::move( val );
 			}
-			if ( !success ) return root;
+			if ( !success ) return;// root;
+//			parseObjNode.adj.emplace_back( Node( cur_line_num, index_into_cur_line, root.find( field ) ) );
+			// memory dies when root gets returned so an iterator to the schema must be used instead
+			// the iterator is correct here
+			parseObjNode.adj.emplace_back( Node( cur_line_num, index_into_cur_line, root.find( field ) ) );
 		}
 	}
 	if ( array_of_extensions.size() ) {
 		root[ extension_key ] = std::move( array_of_extensions );
 		array_of_extensions = nullptr;
 	}
-	return root;
+
+
+	for ( auto const & n1 : parseObjNode.adj ) {
+		auto const & name1 = n1.iter.key();
+		auto const & n1_value = n1.iter.value();
+		int y = 12;
+
+		for ( auto const & n2 : n1.adj ) {
+			auto const & name2 = n2.iter.key();
+			auto const & n2_value = n2.iter.value();
+			int x = 10;
+		}
+	}
+
+//	return root;
 }
 
 json IdfParser::parse_number( std::string const & idf, size_t & index, bool & success ) {
