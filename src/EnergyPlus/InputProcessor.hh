@@ -105,7 +105,7 @@ public:
 		}
 
 		void insertExtensionObj( class Node && n, size_t extSize ) {
-			auto it = adj_.begin();
+			auto const it = adj_.begin();
 			adj_.insert( it + adj_.size() - extSize , n );
 		}
 
