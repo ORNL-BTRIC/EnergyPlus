@@ -207,17 +207,17 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				continue;
 			}
 
-			cur_object_name = & obj_name;
-			Node storeLineNumber( cur_line_num, index_into_cur_line );
-			parseObjNode = Node( cur_line_num, index_into_cur_line );
+			auto const storeLineNum = line_num;
+			auto const storeLineIndex = line_index;
 
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
-			json obj = json::object();
-			parse_object( idf, index, success, legacy_idd, obj_loc, obj );
+			Node innerNode = Node( storeLineNum, storeLineIndex, "", json() );
+			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, innerNode );
 			if ( !success ) print_out_line_error( idf, true );
 			u64toa( root[ obj_name ].size() + 1, s );
 			std::string name = obj_name + " " + s;
+
 			if ( !obj.is_null() ) {
 				auto const & name_iter = obj.find( "name" );
 				if ( name_iter != obj.end() ) {
@@ -232,53 +232,33 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 				}
 			}
 
-//			root[ obj_name ][ name ] = std::move( obj );
-			root[ obj_name ][ name ] = obj;
+			root[ obj_name ][ name ] = std::move( obj );
 
-			auto iter = nodeList.find( obj_name );
-			if ( iter == nodeList.end() ) {
-				storeLineNumber.iter = root.find( obj_name );
-				nodeList.insert( { obj_name, storeLineNumber } );
-				iter = nodeList.find( obj_name );
+			if ( nodeList.find( obj_name ) == nodeList.end() ) {
+				nodeList.insert( { obj_name, Node( storeLineNum, storeLineIndex, obj_name, root[ obj_name ] ) } );
+			} else {
+				// TODO this may be slow, copies potentially large json objects, what does the library do?
+				auto const iter = nodeList.find( obj_name );
+				iter->second.updateValue( root[ obj_name ] );
 			}
 
-			parseObjNode.iter = root[ obj_name ].find( name );
-			Node copy = Node( parseObjNode.line_num, parseObjNode.line_index, parseObjNode.iter );
-			copy.adj = parseObjNode.adj;
-
-			iter->second.adj.push_back( copy );
-
-			for ( auto const & n : nodeList ) {
-				auto const & ePlusName = n.first;
-
-				auto const & node = n.second;
-				auto const & ObjName = node.iter.key();
-
-				for ( auto const & v : node.adj ) {
-					auto const & nameIn = v.iter.key();
-					auto const & valIn = v.iter.value();
-
-					for ( auto const & k : v.adj ) {
-						auto const iterCpy = k.iter;
-						std::string key = iterCpy.key();
-						auto const & val = k.iter.value();
-					}
-				}
-			}
+			innerNode.updateKey( name );
+			innerNode.updateValue( root[ obj_name ][ name ] );
+			nodeList.find( obj_name )->second.addNode( innerNode );
 		}
 	}
-
 
 	return root;
 }
 
-void IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
-							  json const & legacy_idd, json const & schema_obj_loc, json & root ) {
-//	json root = json::object();
+json IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
+							  json const & legacy_idd, json const & schema_obj_loc, Node & node ) {
+	json root = json::object();
 	json extensible = json::object();
 	json array_of_extensions = json::array();
 	Token token;
 	std::string extension_key;
+	Node * extensionNode;
 	size_t legacy_idd_index = 0, extensible_index = 0;
 	success = true;
 	bool was_value_parsed = false;
@@ -294,6 +274,7 @@ void IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	if ( legacy_idd_extensibles_iter != legacy_idd.end() ) {
 		extension_key = key.value();
 		schema_obj_extensions = & schema_obj_props[ extension_key ][ "items" ][ "properties" ];
+		extensionNode = new Node( 0, 0, extension_key, json::array() );
 	}
 
 	auto const & found_min_fields = schema_obj_loc.find( "min_fields" );
@@ -304,23 +285,26 @@ void IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		token = look_ahead( idf, index );
 		if ( token == Token::NONE ) {
 			success = false;
-			return; //root;
+			return root;
 		} else if ( token == Token::END ) {
-			return;// root;
+			return root;
 		} else if ( token == Token::COMMA || token == Token::SEMICOLON ) {
 			if ( !was_value_parsed ) {
 				int ext_size = 0;
 				if ( legacy_idd_index < legacy_idd_fields_array.size() ) {
 					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
 					root[ field_name ] = "";
+					node.addNode( Node( line_num, line_index, field_name, root[ field_name ] ) );
 				} else {
 					auto const & legacy_idd_extensibles_array = legacy_idd_extensibles_iter.value();
 					ext_size = static_cast<int>( legacy_idd_extensibles_array.size() );
 					std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % ext_size ];
 					extensible_index++;
 					extensible[ field_name ] = "";
+					extensionNode->addNode( Node( line_num, line_index, field_name, extensible[ field_name ] ) );
 				}
 				if ( ext_size && extensible_index % ext_size == 0 ) {
+					extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), ext_size );
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
 				}
@@ -336,8 +320,10 @@ void IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				for (; legacy_idd_index < min_fields; legacy_idd_index++) {
 					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
 					root[ field_name ] = "";
+					node.addNode( Node( line_num, line_index, field_name, root[ field_name ] ) );
 				}
 				if ( extensible.size() ) {
+					extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
 				}
@@ -348,16 +334,18 @@ void IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 		} else if ( legacy_idd_index >= legacy_idd_fields_array.size() ) {
 			if ( legacy_idd_extensibles_iter == legacy_idd.end() ) {
 				success = false;
-				return;// root;
+				return root;
 			}
 			auto const & legacy_idd_extensibles_array = legacy_idd_extensibles_iter.value();
 			auto const size = legacy_idd_extensibles_array.size();
 			std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % size ];
 			auto const val = parse_value( idf, index, success, schema_obj_extensions->at( field_name ) );
 			extensible[ field_name ] = std::move( val );
+			extensionNode->addNode( Node( line_num, line_index, field_name, extensible[ field_name ] ) );
 			was_value_parsed = true;
 			extensible_index++;
 			if ( extensible_index && extensible_index % size == 0 ) {
+				extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
 				array_of_extensions.push_back( extensible );
 				extensible.clear();
 			}
@@ -370,39 +358,25 @@ void IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 					root[ field ] = parse_string( idf, index, success );
 					continue;
 				} else {
-					u64toa( cur_line_num, s );
+					u64toa( line_num, s );
 					EnergyPlus::ShowWarningMessage( "Field " + field + " was not found at line " + s );
 				}
 			} else {
 				auto const val = parse_value( idf, index, success, find_field_iter.value() );
 				root[ field ] = std::move( val );
 			}
-			if ( !success ) return;// root;
-//			parseObjNode.adj.emplace_back( Node( cur_line_num, index_into_cur_line, root.find( field ) ) );
-			// memory dies when root gets returned so an iterator to the schema must be used instead
-			// the iterator is correct here
-			parseObjNode.adj.emplace_back( Node( cur_line_num, index_into_cur_line, root.find( field ) ) );
+			if ( !success ) return root;
+			node.addNode( Node( line_num, line_index, field, root[ field ] ) );
 		}
 	}
 	if ( array_of_extensions.size() ) {
 		root[ extension_key ] = std::move( array_of_extensions );
 		array_of_extensions = nullptr;
+		extensionNode->updateValue( root[ extension_key ] );
+		node.addNode( *extensionNode );
 	}
 
-
-	for ( auto const & n1 : parseObjNode.adj ) {
-		auto const & name1 = n1.iter.key();
-		auto const & n1_value = n1.iter.value();
-		int y = 12;
-
-		for ( auto const & n2 : n1.adj ) {
-			auto const & name2 = n2.iter.key();
-			auto const & n2_value = n2.iter.value();
-			int x = 10;
-		}
-	}
-
-//	return root;
+	return root;
 }
 
 json IdfParser::parse_number( std::string const & idf, size_t & index, bool & success ) {
@@ -513,12 +487,12 @@ json IdfParser::parse_value( std::string const & idf, size_t & index, bool & suc
 				return parsed_string;
 			}
 			case Token::NUMBER: {
-				size_t save_line_index = index_into_cur_line;
-				size_t save_line_num = cur_line_num;
+				size_t save_line_index = line_index;
+				size_t save_line_num = line_num;
 				json value = parse_number(idf, index, success);
 				if ( !success ) {
-					cur_line_num = save_line_num;
-					index_into_cur_line = save_line_index;
+					line_num = save_line_num;
+					line_index = save_line_index;
 					success = true;
 					return parse_string(idf, index, success);
 				}
@@ -550,23 +524,23 @@ std::string IdfParser::parse_string( std::string const & idf, size_t & index, bo
 		}
 
 		c = idf[ index ];
-		increment_both_index( index, index_into_cur_line );
+		increment_both_index( index, line_index );
 		if ( c == ',' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == ';' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == '!' ) {
 			complete = true;
-			decrement_both_index( index, index_into_cur_line );
+			decrement_both_index( index, line_index );
 			break;
 		} else if ( c == '\\' ) {
 			if ( index == idf.size() ) break;
 			char next_c = idf[ index ];
-			increment_both_index( index, index_into_cur_line );
+			increment_both_index( index, line_index );
 			if ( next_c == '"' ) {
 				s += '"';
 			} else if ( next_c == '\\' ) {
@@ -613,9 +587,9 @@ void IdfParser::print_out_line_error( std::string const & idf, bool obj_found ) 
 	std::string line;
 	if ( obj_found ) EnergyPlus::ShowWarningError( "error: \"extra field(s)\" " );
 	else EnergyPlus::ShowWarningError( "error: \"obj not found in schema\" " );
-	EnergyPlus::ShowWarningError( "at line number " + std::to_string( cur_line_num )
-								  + " (index " + std::to_string(index_into_cur_line)  + ")\nLine:\n" );
-	while ( idf[ beginning_of_line_index++ ] != '\n' ) line += idf[ beginning_of_line_index ];
+	EnergyPlus::ShowWarningError( "at line number " + std::to_string( line_num )
+								  + " (index " + std::to_string(line_index)  + ")\nLine:\n" );
+//	while ( idf[ beginning_of_line_index++ ] != '\n' ) line += idf[ beginning_of_line_index ];
 	EnergyPlus::ShowWarningError( line );
 }
 
@@ -625,12 +599,12 @@ void IdfParser::eat_whitespace( std::string const & idf, size_t & index ) {
 			case ' ':
 			case '\r':
 			case '\t':
-				increment_both_index( index, index_into_cur_line );
+				increment_both_index( index, line_index );
 				continue;
 			case '\n':
-				increment_both_index( index, cur_line_num );
-				beginning_of_line_index = index;
-				index_into_cur_line = 0;
+				increment_both_index( index, line_num );
+//				beginning_of_line_index = index;
+				line_index = 0;
 				continue;
 			default:
 				return;
@@ -642,22 +616,22 @@ void IdfParser::eat_comment( std::string const & idf, size_t & index ) {
 	while ( true ) {
 		if ( index == idf.size() ) break;
 		if ( idf[ index ] == '\n' ) {
-			increment_both_index( index, cur_line_num );
-			index_into_cur_line = 0;
-			beginning_of_line_index = index;
+			increment_both_index( index, line_num );
+			line_index = 0;
+//			beginning_of_line_index = index;
 			break;
 		}
-		increment_both_index( index, index_into_cur_line );
+		increment_both_index( index, line_index );
 	}
 }
 
 IdfParser::Token IdfParser::look_ahead( std::string const & idf, size_t index ) {
 	size_t save_index = index;
-	size_t save_line_num = cur_line_num;
-	size_t save_line_index = index_into_cur_line;
+	size_t save_line_num = line_num;
+	size_t save_line_index = line_index;
 	Token token = next_token( idf, save_index );
-	cur_line_num = save_line_num;
-	index_into_cur_line = save_line_index;
+	line_num = save_line_num;
+	line_index = save_line_index;
 	return token;
 }
 
@@ -669,7 +643,7 @@ IdfParser::Token IdfParser::next_token( std::string const & idf, size_t & index 
 	}
 
 	char const c = idf[ index ];
-	increment_both_index( index, index_into_cur_line );
+	increment_both_index( index, line_index );
 	switch ( c ) {
 		case '!':
 			return Token::EXCLAMATION;
@@ -687,7 +661,7 @@ IdfParser::Token IdfParser::next_token( std::string const & idf, size_t & index 
 			}
 			break;
 	}
-	decrement_both_index( index, index_into_cur_line );
+	decrement_both_index( index, line_index );
 	return Token::NONE;
 }
 

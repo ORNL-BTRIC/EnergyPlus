@@ -81,23 +81,40 @@ public:
 
 	class Node {
 	public:
-		Node() { }
+		Node( size_t line_num, size_t line_index, std::string const & key, json const & value ) :
+				key_( key ),
+				value_( value ),
+				line_num_( line_num ),
+				line_index_( line_index )
+		{ }
 
-		Node( size_t line_num, size_t line_index ) {
-			this->line_num = line_num;
-			this->line_index = line_index;
+		void addNode( class Node & n ) {
+			adj_.push_back( n );
 		}
 
-		Node( size_t line_num, size_t line_index, json::const_iterator iter ) {
-			this->line_num = line_num;
-			this->line_index = line_index;
-			this->iter = iter;
+		void addNode( class Node && n ) {
+			adj_.emplace_back( n );
 		}
 
-		std::vector < class Node > adj;
-		json::const_iterator iter;
-		size_t line_num;
-		size_t line_index;
+		void updateKey( std::string & newName ) {
+			key_ = newName;
+		}
+
+		void updateValue( json & value ) {
+			value_ = value;
+		}
+
+		void insertExtensionObj( class Node && n, size_t extSize ) {
+			auto it = adj_.begin();
+			adj_.insert( it + adj_.size() - extSize , n );
+		}
+
+	private:
+		std::vector< class Node > adj_;
+		std::string key_;
+		json value_;
+		size_t line_num_;
+		size_t line_index_;
 	};
 
 	std::unordered_map< std::string, Node > nodeList;
@@ -114,8 +131,8 @@ public:
 
 	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema );
 
-	void parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
-								json const & obj_loc, json & root );
+	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
+								json const & obj_loc, Node & node );
 
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
@@ -148,12 +165,8 @@ public:
 
 private:
 	friend class InputProcessorFixture;
-
-	std::string * cur_object_name = nullptr;
-	Node parseObjNode;
-	size_t cur_line_num = 1;
-	size_t index_into_cur_line = 0;
-	size_t beginning_of_line_index = 0;
+	size_t line_num = 1;
+	size_t line_index = 0;
 	char s[ 129 ];
 };
 
