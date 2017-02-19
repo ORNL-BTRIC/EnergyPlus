@@ -333,7 +333,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	json array_of_extensions = json::array();
 	Token token;
 	std::string extension_key;
-	Vnode * extensionNode;
+	std::unique_ptr< Vnode > extensionNode( nullptr );
 	size_t legacy_idd_index = 0, extensible_index = 0;
 	success = true;
 	bool was_value_parsed = false;
@@ -349,7 +349,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	if ( legacy_idd_extensibles_iter != legacy_idd.end() ) {
 		extension_key = key.value();
 		schema_obj_extensions = & schema_obj_props[ extension_key ][ "items" ][ "properties" ];
-		extensionNode = new Vnode( 0, 0, extension_key, json::array() );
+		extensionNode.reset( new Vnode( 0, 0, extension_key, json::array() ) );
 	}
 
 	auto const & found_min_fields = schema_obj_loc.find( "min_fields" );
