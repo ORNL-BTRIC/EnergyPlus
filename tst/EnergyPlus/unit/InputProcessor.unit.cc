@@ -521,7 +521,8 @@ namespace EnergyPlus {
 				}
 			}
 		}
-		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
+
+//		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
 		EXPECT_EQ(errors.size() + warnings.size(), 0ul);
@@ -703,7 +704,7 @@ namespace EnergyPlus {
 			}
 		}
 
-		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
+//		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
 		EXPECT_EQ(errors.size() + warnings.size(), 0ul);
@@ -1143,7 +1144,7 @@ namespace EnergyPlus {
 				}));
 		ASSERT_TRUE( process_idf( idf ) );
 		json & jdf = getJDF();
-		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
+//		json::parse(jdf.dump(2), EnergyPlusFixture::call_back);
 		auto const & errors = validation_errors();
 		auto const & warnings = validation_warnings();
 		EXPECT_EQ(errors.size() + warnings.size(), 2ul);
@@ -1396,296 +1397,296 @@ namespace EnergyPlus {
 	}
 
 
-	TEST_F( InputProcessorFixture, eat_whitespace ) {
-		size_t index = 0;
-		eat_whitespace( "    test", index );
-		EXPECT_EQ( 4ul, index );
-
-		index = 0;
-		eat_whitespace( "t   test", index );
-		EXPECT_EQ( 0ul, index );
-	}
-
-
-	TEST_F( InputProcessorFixture, eat_comment ) {
-		size_t index = 0;
-		eat_comment( "!- North Axis {deg}\n", index );
-		EXPECT_EQ( 20ul, index );
-
-		index = 0;
-		eat_comment( "                    !- Terrain\n", index );
-		EXPECT_EQ( 31ul, index );
-
-		index = 0;
-		eat_comment( "  !- Name\n    0.0000", index );
-		EXPECT_EQ( 10ul, index );
-
-		index = 0;
-		eat_comment( "  !- Name\n\r    0.0000", index );
-		EXPECT_EQ( 10ul, index );
-	}
-
-
-	TEST_F( InputProcessorFixture, parse_string ) {
-		size_t index = 0;
-		bool success = true;
-		std::string output_string;
-
-		output_string = parse_string( "test_string", index, success );
-		EXPECT_EQ( "test_string", output_string );
-		EXPECT_EQ( 11ul, index );
-		EXPECT_TRUE( success );
-
-		index = 0;
-		success = true;
-		output_string = parse_string( "-1234.1234", index, success );
-		EXPECT_EQ( "-1234.1234", output_string );
-		EXPECT_EQ( 10ul, index );
-		EXPECT_TRUE( success );
-
-		index = 0;
-		success = true;
-		output_string = parse_string( R"(\b\t/\\\";)", index, success );
-		EXPECT_EQ( "\b\t/\\\"", output_string );
-		EXPECT_EQ( 9ul, index );
-		EXPECT_TRUE( success );
-
-		index = 0;
-		success = true;
-		output_string = parse_string( R"(test \n string)", index, success );
-		EXPECT_EQ( "", output_string );
-		EXPECT_EQ( 7ul, index );
-		EXPECT_FALSE( success );
-
-		index = 0;
-		success = true;
-		output_string = parse_string( R"(! this is a comment \n)", index, success );
-		EXPECT_EQ( "", output_string );
-		EXPECT_EQ( 0ul, index );
-		EXPECT_TRUE( success );
-	}
-
-	TEST_F (InputProcessorFixture, parse_value) {
-		size_t index = 0;
-		bool success = true;
-		json rv;
-
-		rv = parse_value("11th of April,", index, success);
-		EXPECT_EQ(13ul, index);
-		EXPECT_EQ("11th of April", rv.get<std::string>());
-
-		index = 0;
-		rv = parse_value("11.201,", index, success);
-		EXPECT_EQ(6ul, index);
-		EXPECT_EQ(11.201, rv.get<double>());
-
-		index = 0;
-		rv = parse_value("11.201 of April,", index, success);
-		EXPECT_EQ(15ul, index);
-		EXPECT_EQ("11.201 of April", rv.get<std::string>());
-
-		index = 0;
-		EXPECT_NO_THROW(rv = parse_value("4Ee5,", index, success));
-		EXPECT_EQ(4ul, index);
-		EXPECT_EQ("4Ee5", rv.get<std::string>());
-	}
-
-
-	TEST_F( InputProcessorFixture, parse_number) {
-		size_t index = 0;
-		bool success = true;
-		json output;
-
-		output = parse_number("4.5,", index, success);
-		EXPECT_EQ(4.5, output.get<double>());
-		EXPECT_EQ(3ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("0.53;", index, success);
-		EXPECT_EQ(0.53, output.get<double>());
-		EXPECT_EQ(4ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("1.53  ;", index, success);
-		EXPECT_EQ(1.53, output.get<double>());
-		EXPECT_EQ(4ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number(" 1.53  ;", index, success);
-		EXPECT_EQ(1.53, output.get<double>());
-		EXPECT_EQ(5ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("2.510035e5;", index, success);
-		EXPECT_EQ(251003.5, output.get<double>());
-		EXPECT_EQ(10ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("2.510035e-05;", index, success);
-		EXPECT_EQ(0.00002510035, output.get<double>());
-		EXPECT_EQ(12ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("1.0E-05;", index, success);
-		EXPECT_EQ(0.000010, output.get<double>());
-		EXPECT_EQ(7ul, index);
-		EXPECT_TRUE(success);
-
-		// handling weird scientific notation
-		index = 0;
-		output = parse_number("5E-5;", index, success);
-		EXPECT_EQ(0.00005, output.get<double>());
-		EXPECT_EQ(4ul, index);
-		EXPECT_TRUE(success);
-
-
-		// handling weird scientific notation
-		index = 0;
-		output = parse_number("5E-05;", index, success);
-		EXPECT_EQ(0.00005, output.get<double>());
-		EXPECT_EQ(5ul, index);
-		EXPECT_TRUE(success);
-
-		// handling weird scientific notation
-		index = 0;
-		output = parse_number("5.E-05;", index, success);
-		EXPECT_EQ(0.00005, output.get<double>());
-		EXPECT_EQ(6ul, index);
-		EXPECT_TRUE(success);
-
-		index = 0;
-		output = parse_number("11th of April,", index, success);
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("-+4,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4..0,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("++4,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("--4,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4++,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4--,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4ee5,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4EE5,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4eE5,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-
-		index = 0;
-		EXPECT_NO_THROW(output = parse_number("4Ee5,", index, success));
-		EXPECT_TRUE(output.is_null());
-		EXPECT_EQ(0ul, index);
-		EXPECT_FALSE(success);
-	}
-
-
-	TEST_F( InputProcessorFixture, look_ahead ) {
-		std::string const test_input( "B , ! t ; `" );
-		size_t index = 0;
-		IdfParser::Token token = look_ahead( test_input, index );
-		EXPECT_EQ( 0ul, index );
-		EXPECT_EQ( IdfParser::Token::STRING, token );
-		index = 2;
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( 2ul, index );
-		EXPECT_EQ( IdfParser::Token::COMMA, token );
-		index = 3;
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( 3ul, index );
-		EXPECT_EQ( IdfParser::Token::EXCLAMATION, token );
-		index = 5;
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( 5ul, index );
-		EXPECT_EQ( IdfParser::Token::STRING, token );
-		index = 7;
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( 7ul, index );
-		EXPECT_EQ( IdfParser::Token::SEMICOLON, token );
-		index = 9;
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( 9ul, index );
-		EXPECT_EQ( IdfParser::Token::NONE, token );
-		index = test_input.size();
-		token = look_ahead( test_input, index );
-		EXPECT_EQ( test_input.size(), index );
-		EXPECT_EQ( IdfParser::Token::END, token );
-	}
-
-	TEST_F( InputProcessorFixture, next_token ) {
-		size_t index = 0;
-
-		std::string const test_input( "B , ! t ; `" );
-		IdfParser::Token token = next_token( test_input, index );
-		EXPECT_EQ( 1ul, index );
-		EXPECT_EQ( IdfParser::Token::STRING, token );
-		token = next_token( test_input, index );
-		EXPECT_EQ( 3ul, index );
-		EXPECT_EQ( IdfParser::Token::COMMA, token );
-		token = next_token( test_input, index );
-		EXPECT_EQ( 5ul, index );
-		EXPECT_EQ( IdfParser::Token::EXCLAMATION, token );
-		token = next_token( test_input, index );
-		EXPECT_EQ( 7ul, index );
-		EXPECT_EQ( IdfParser::Token::STRING, token );
-		token = next_token( test_input, index );
-		EXPECT_EQ( 9ul, index );
-		EXPECT_EQ( IdfParser::Token::SEMICOLON, token );
-		token = next_token( test_input, index );
-		EXPECT_EQ( 10ul, index );
-		EXPECT_EQ( IdfParser::Token::NONE, token );
-		index = test_input.size();
-		token = next_token( test_input, index );
-		EXPECT_EQ( test_input.size() , index );
-		EXPECT_EQ( IdfParser::Token::END, token );
-	}
+//	TEST_F( InputProcessorFixture, eat_whitespace ) {
+//		size_t index = 0;
+//		eat_whitespace( "    test", index );
+//		EXPECT_EQ( 4ul, index );
+//
+//		index = 0;
+//		eat_whitespace( "t   test", index );
+//		EXPECT_EQ( 0ul, index );
+//	}
+//
+//
+//	TEST_F( InputProcessorFixture, eat_comment ) {
+//		size_t index = 0;
+//		eat_comment( "!- North Axis {deg}\n", index );
+//		EXPECT_EQ( 20ul, index );
+//
+//		index = 0;
+//		eat_comment( "                    !- Terrain\n", index );
+//		EXPECT_EQ( 31ul, index );
+//
+//		index = 0;
+//		eat_comment( "  !- Name\n    0.0000", index );
+//		EXPECT_EQ( 10ul, index );
+//
+//		index = 0;
+//		eat_comment( "  !- Name\n\r    0.0000", index );
+//		EXPECT_EQ( 10ul, index );
+//	}
+//
+//
+//	TEST_F( InputProcessorFixture, parse_string ) {
+//		size_t index = 0;
+//		bool success = true;
+//		std::string output_string;
+//
+//		output_string = parse_string( "test_string", index, success );
+//		EXPECT_EQ( "test_string", output_string );
+//		EXPECT_EQ( 11ul, index );
+//		EXPECT_TRUE( success );
+//
+//		index = 0;
+//		success = true;
+//		output_string = parse_string( "-1234.1234", index, success );
+//		EXPECT_EQ( "-1234.1234", output_string );
+//		EXPECT_EQ( 10ul, index );
+//		EXPECT_TRUE( success );
+//
+//		index = 0;
+//		success = true;
+//		output_string = parse_string( R"(\b\t/\\\";)", index, success );
+//		EXPECT_EQ( "\b\t/\\\"", output_string );
+//		EXPECT_EQ( 9ul, index );
+//		EXPECT_TRUE( success );
+//
+//		index = 0;
+//		success = true;
+//		output_string = parse_string( R"(test \n string)", index, success );
+//		EXPECT_EQ( "", output_string );
+//		EXPECT_EQ( 7ul, index );
+//		EXPECT_FALSE( success );
+//
+//		index = 0;
+//		success = true;
+//		output_string = parse_string( R"(! this is a comment \n)", index, success );
+//		EXPECT_EQ( "", output_string );
+//		EXPECT_EQ( 0ul, index );
+//		EXPECT_TRUE( success );
+//	}
+//
+//	TEST_F (InputProcessorFixture, parse_value) {
+//		size_t index = 0;
+//		bool success = true;
+//		json rv;
+//
+//		rv = parse_value("11th of April,", index, success);
+//		EXPECT_EQ(13ul, index);
+//		EXPECT_EQ("11th of April", rv.get<std::string>());
+//
+//		index = 0;
+//		rv = parse_value("11.201,", index, success);
+//		EXPECT_EQ(6ul, index);
+//		EXPECT_EQ(11.201, rv.get<double>());
+//
+//		index = 0;
+//		rv = parse_value("11.201 of April,", index, success);
+//		EXPECT_EQ(15ul, index);
+//		EXPECT_EQ("11.201 of April", rv.get<std::string>());
+//
+//		index = 0;
+//		EXPECT_NO_THROW(rv = parse_value("4Ee5,", index, success));
+//		EXPECT_EQ(4ul, index);
+//		EXPECT_EQ("4Ee5", rv.get<std::string>());
+//	}
+//
+//
+//	TEST_F( InputProcessorFixture, parse_number) {
+//		size_t index = 0;
+//		bool success = true;
+//		json output;
+//
+//		output = parse_number("4.5,", index, success);
+//		EXPECT_EQ(4.5, output.get<double>());
+//		EXPECT_EQ(3ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("0.53;", index, success);
+//		EXPECT_EQ(0.53, output.get<double>());
+//		EXPECT_EQ(4ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("1.53  ;", index, success);
+//		EXPECT_EQ(1.53, output.get<double>());
+//		EXPECT_EQ(4ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number(" 1.53  ;", index, success);
+//		EXPECT_EQ(1.53, output.get<double>());
+//		EXPECT_EQ(5ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("2.510035e5;", index, success);
+//		EXPECT_EQ(251003.5, output.get<double>());
+//		EXPECT_EQ(10ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("2.510035e-05;", index, success);
+//		EXPECT_EQ(0.00002510035, output.get<double>());
+//		EXPECT_EQ(12ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("1.0E-05;", index, success);
+//		EXPECT_EQ(0.000010, output.get<double>());
+//		EXPECT_EQ(7ul, index);
+//		EXPECT_TRUE(success);
+//
+//		// handling weird scientific notation
+//		index = 0;
+//		output = parse_number("5E-5;", index, success);
+//		EXPECT_EQ(0.00005, output.get<double>());
+//		EXPECT_EQ(4ul, index);
+//		EXPECT_TRUE(success);
+//
+//
+//		// handling weird scientific notation
+//		index = 0;
+//		output = parse_number("5E-05;", index, success);
+//		EXPECT_EQ(0.00005, output.get<double>());
+//		EXPECT_EQ(5ul, index);
+//		EXPECT_TRUE(success);
+//
+//		// handling weird scientific notation
+//		index = 0;
+//		output = parse_number("5.E-05;", index, success);
+//		EXPECT_EQ(0.00005, output.get<double>());
+//		EXPECT_EQ(6ul, index);
+//		EXPECT_TRUE(success);
+//
+//		index = 0;
+//		output = parse_number("11th of April,", index, success);
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("-+4,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4..0,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("++4,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("--4,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4++,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4--,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4ee5,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4EE5,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4eE5,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//
+//		index = 0;
+//		EXPECT_NO_THROW(output = parse_number("4Ee5,", index, success));
+//		EXPECT_TRUE(output.is_null());
+//		EXPECT_EQ(0ul, index);
+//		EXPECT_FALSE(success);
+//	}
+//
+//
+//	TEST_F( InputProcessorFixture, look_ahead ) {
+//		std::string const test_input( "B , ! t ; `" );
+//		size_t index = 0;
+//		IdfParser::Token token = look_ahead( test_input, index );
+//		EXPECT_EQ( 0ul, index );
+//		EXPECT_EQ( IdfParser::Token::STRING, token );
+//		index = 2;
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( 2ul, index );
+//		EXPECT_EQ( IdfParser::Token::COMMA, token );
+//		index = 3;
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( 3ul, index );
+//		EXPECT_EQ( IdfParser::Token::EXCLAMATION, token );
+//		index = 5;
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( 5ul, index );
+//		EXPECT_EQ( IdfParser::Token::STRING, token );
+//		index = 7;
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( 7ul, index );
+//		EXPECT_EQ( IdfParser::Token::SEMICOLON, token );
+//		index = 9;
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( 9ul, index );
+//		EXPECT_EQ( IdfParser::Token::NONE, token );
+//		index = test_input.size();
+//		token = look_ahead( test_input, index );
+//		EXPECT_EQ( test_input.size(), index );
+//		EXPECT_EQ( IdfParser::Token::END, token );
+//	}
+//
+//	TEST_F( InputProcessorFixture, next_token ) {
+//		size_t index = 0;
+//
+//		std::string const test_input( "B , ! t ; `" );
+//		IdfParser::Token token = next_token( test_input, index );
+//		EXPECT_EQ( 1ul, index );
+//		EXPECT_EQ( IdfParser::Token::STRING, token );
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( 3ul, index );
+//		EXPECT_EQ( IdfParser::Token::COMMA, token );
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( 5ul, index );
+//		EXPECT_EQ( IdfParser::Token::EXCLAMATION, token );
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( 7ul, index );
+//		EXPECT_EQ( IdfParser::Token::STRING, token );
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( 9ul, index );
+//		EXPECT_EQ( IdfParser::Token::SEMICOLON, token );
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( 10ul, index );
+//		EXPECT_EQ( IdfParser::Token::NONE, token );
+//		index = test_input.size();
+//		token = next_token( test_input, index );
+//		EXPECT_EQ( test_input.size() , index );
+//		EXPECT_EQ( IdfParser::Token::END, token );
+//	}
 
 	TEST_F( InputProcessorFixture, getObjectItem_json1 )
 	{

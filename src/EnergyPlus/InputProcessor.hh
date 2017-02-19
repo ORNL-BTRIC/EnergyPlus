@@ -75,49 +75,61 @@
 
 using json = nlohmann::json;
 
+class Vnode {
+public:
+
+	Vnode( size_t line_num, size_t line_index, std::string const & key, json const & value ) :
+			key_( key ),
+			value_( value ),
+			line_num_( line_num ),
+			line_index_( line_index )
+	{ }
+
+	void addNode( class Vnode & n ) {
+		adj_.push_back( n );
+	}
+
+	void addNode( class Vnode && n ) {
+		adj_.emplace_back( n );
+	}
+
+	void updateKey( std::string & newName ) {
+		key_ = newName;
+	}
+
+	void updateValue( json & value ) {
+		value_ = value;
+	}
+
+	void insertExtensionObj( class Vnode && n, size_t extSize ) {
+		auto const it = adj_.begin();
+		adj_.insert( it + adj_.size() - extSize , n );
+	}
+
+private:
+
+	friend class IdfParser;
+	friend class IdfDataStructure;
+	std::vector< class Vnode > adj_;
+	std::string key_;
+	json value_;
+	size_t line_num_;
+	size_t line_index_;
+};
+
+class IdfDataStructure {
+	friend class IdfParser;
+
+	void traverseObject( Vnode & n, size_t depth, json::parser_callback_t const call_back );
+
+	void traverseArray( Vnode & n, size_t depth, json::parser_callback_t const call_back );
+
+	std::unordered_map< std::string, class Vnode > nodeList;
+
+};
 
 class IdfParser {
 public:
-
-	class Node {
-	public:
-		Node( size_t line_num, size_t line_index, std::string const & key, json const & value ) :
-				key_( key ),
-				value_( value ),
-				line_num_( line_num ),
-				line_index_( line_index )
-		{ }
-
-		void addNode( class Node & n ) {
-			adj_.push_back( n );
-		}
-
-		void addNode( class Node && n ) {
-			adj_.emplace_back( n );
-		}
-
-		void updateKey( std::string & newName ) {
-			key_ = newName;
-		}
-
-		void updateValue( json & value ) {
-			value_ = value;
-		}
-
-		void insertExtensionObj( class Node && n, size_t extSize ) {
-			auto const it = adj_.begin();
-			adj_.insert( it + adj_.size() - extSize , n );
-		}
-
-	private:
-		std::vector< class Node > adj_;
-		std::string key_;
-		json value_;
-		size_t line_num_;
-		size_t line_index_;
-	};
-
-	std::unordered_map< std::string, Node > nodeList;
 
 	json decode( std::string const & idf, json const & schema );
 
@@ -125,14 +137,20 @@ public:
 
 	std::string encode( json const & root, json const & schema );
 
+	void traverseIdfStructureForValidation( json::parser_callback_t const call_back );
+
 	enum class Token : size_t {
 		NONE = 0, END = 1, EXCLAMATION = 2, COMMA = 3, SEMICOLON = 4, STRING = 5, NUMBER = 6
 	};
 
+private:
+
+	IdfDataStructure idfData;
+
 	json parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema );
 
 	json parse_object( std::string const & idf, size_t & index, bool & success, json const & schema_loc,
-								json const & obj_loc, Node & node );
+	                   json const & obj_loc, Vnode & node );
 
 	json parse_value( std::string const & idf, size_t & index, bool & success, json const & field_loc );
 
@@ -163,13 +181,12 @@ public:
 		return s;
 	}
 
-private:
 	friend class InputProcessorFixture;
 	size_t line_num = 1;
 	size_t line_index = 0;
 	char s[ 129 ];
-};
 
+};
 
 class State {
 public:

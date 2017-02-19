@@ -181,6 +181,81 @@ std::string IdfParser::encode( json const & root, json const & schema ) {
 	return encoded;
 }
 
+void IdfParser::traverseIdfStructureForValidation( json::parser_callback_t const call_back ) {
+	json nullObj = json::object();
+	size_t depth = 0;
+	call_back( depth, json::parse_event_t::object_start, nullObj, 1, 1 );
+
+	for ( auto & iter : idfData.nodeList ) {
+		json key = iter.first;
+		for ( auto & node : iter.second.adj_ ) {
+			call_back( depth, json::parse_event_t::key, key, node.line_num_, node.line_index_ );
+			call_back( depth++, json::parse_event_t::object_start, node.value_, node.line_num_, node.line_index_ );
+			idfData.traverseObject( node, depth++, call_back );
+			call_back( depth++, json::parse_event_t::object_end, node.value_, node.line_num_, node.line_index_ );
+		}
+	}
+	call_back( depth, json::parse_event_t::object_end, nullObj, 1, 1 );
+}
+
+// all nodes should be const but callback is getting in the way, not compiling TODO
+void IdfDataStructure::traverseObject( Vnode & n, size_t depth, json::parser_callback_t const call_back ) {
+	json key = n.key_;
+
+	call_back( depth, json::parse_event_t::key, key, n.line_num_, n.line_index_ );
+
+	call_back( depth++, json::parse_event_t::object_start, n.value_, n.line_num_, n.line_index_ );
+
+//	if ( n.adj_.empty() ) {
+//		json val = n.value_;
+//		call_back( depth, json::parse_event_t::value, val, n.line_num_, n.line_index_ );
+//		return;
+//	}
+
+	for ( auto & node : n.adj_ ) {
+		json k = node.key_;
+		if ( node.value_.is_object() ) {
+			call_back( depth++, json::parse_event_t::object_start, node.value_, node.line_num_, node.line_index_ );
+			traverseObject( node, depth++, call_back );
+			call_back( depth--, json::parse_event_t::object_end, node.value_, node.line_num_, node.line_index_ );
+		} else if ( node.value_.is_array() ) {
+			call_back( depth, json::parse_event_t::key, k, node.line_num_, node.line_index_ );
+			call_back( depth++, json::parse_event_t::array_start, node.value_, node.line_num_, node.line_index_ );
+			traverseArray( node, depth++, call_back );
+			call_back( depth--, json::parse_event_t::array_end, node.value_, node.line_num_, node.line_index_ );
+		} else {
+			call_back( depth, json::parse_event_t::key, k, node.line_num_, node.line_index_ );
+			call_back( depth, json::parse_event_t::value, node.value_, node.line_num_, node.line_index_ );
+		}
+	}
+
+	call_back( depth--, json::parse_event_t::object_end, n.value_, n.line_num_, n.line_index_ );
+
+}
+
+// all nodes should be const but callback is getting in the way, not compiling TODO
+void IdfDataStructure::traverseArray( Vnode & n, size_t depth, json::parser_callback_t const call_back ) {
+	json key = n.key_;
+	call_back( depth++, json::parse_event_t::object_start, n.value_, n.line_num_, n.line_index_ );
+
+	for ( size_t i = 1; i < n.adj_.size(); i++ ) {
+		auto & node = n.adj_[ i ];
+		if ( node.value_.is_object() ) {
+			call_back( depth--, json::parse_event_t::object_end, node.value_, node.line_num_, node.line_index_ );
+			if ( i + 1 < n.adj_.size() ) {
+				node = n.adj_[ i + 1 ];
+				call_back( depth++, json::parse_event_t::object_start, node.value_, node.line_num_, node.line_index_ );
+			}
+		} else {
+			json k = node.key_;
+			call_back( depth, json::parse_event_t::key, k, node.line_num_, node.line_index_ );
+			call_back( depth, json::parse_event_t::value, node.value_, node.line_num_, node.line_index_ );
+		}
+	}
+
+	call_back( depth--, json::parse_event_t::object_end, n.value_, n.line_num_, n.line_index_ );
+}
+
 json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & success, json const & schema ) {
 	json root;
 	Token token;
@@ -212,7 +287,7 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 
 			json const & obj_loc = schema_properties[ obj_name ];
 			json const & legacy_idd = obj_loc[ "legacy_idd" ];
-			Node innerNode = Node( storeLineNum, storeLineIndex, "", json() );
+			Vnode innerNode = Vnode( storeLineNum, storeLineIndex, "", json() );
 			json obj = parse_object( idf, index, success, legacy_idd, obj_loc, innerNode );
 			if ( !success ) print_out_line_error( idf, true );
 			u64toa( root[ obj_name ].size() + 1, s );
@@ -234,17 +309,17 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 
 			root[ obj_name ][ name ] = std::move( obj );
 
-			if ( nodeList.find( obj_name ) == nodeList.end() ) {
-				nodeList.insert( { obj_name, Node( storeLineNum, storeLineIndex, obj_name, root[ obj_name ] ) } );
+			if ( idfData.nodeList.find( obj_name ) == idfData.nodeList.end() ) {
+				idfData.nodeList.insert( { obj_name, Vnode( storeLineNum, storeLineIndex, obj_name, root[ obj_name ] ) } );
 			} else {
 				// TODO this may be slow, copies potentially large json objects, what does the library do?
-				auto const iter = nodeList.find( obj_name );
+				auto const iter = idfData.nodeList.find( obj_name );
 				iter->second.updateValue( root[ obj_name ] );
 			}
 
 			innerNode.updateKey( name );
 			innerNode.updateValue( root[ obj_name ][ name ] );
-			nodeList.find( obj_name )->second.addNode( innerNode );
+			idfData.nodeList.find( obj_name )->second.addNode( innerNode );
 		}
 	}
 
@@ -252,13 +327,13 @@ json IdfParser::parse_idf( std::string const & idf, size_t & index, bool & succe
 }
 
 json IdfParser::parse_object( std::string const & idf, size_t & index, bool & success,
-							  json const & legacy_idd, json const & schema_obj_loc, Node & node ) {
+							  json const & legacy_idd, json const & schema_obj_loc, Vnode & node ) {
 	json root = json::object();
 	json extensible = json::object();
 	json array_of_extensions = json::array();
 	Token token;
 	std::string extension_key;
-	Node * extensionNode;
+	Vnode * extensionNode;
 	size_t legacy_idd_index = 0, extensible_index = 0;
 	success = true;
 	bool was_value_parsed = false;
@@ -274,7 +349,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 	if ( legacy_idd_extensibles_iter != legacy_idd.end() ) {
 		extension_key = key.value();
 		schema_obj_extensions = & schema_obj_props[ extension_key ][ "items" ][ "properties" ];
-		extensionNode = new Node( 0, 0, extension_key, json::array() );
+		extensionNode = new Vnode( 0, 0, extension_key, json::array() );
 	}
 
 	auto const & found_min_fields = schema_obj_loc.find( "min_fields" );
@@ -294,17 +369,17 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				if ( legacy_idd_index < legacy_idd_fields_array.size() ) {
 					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
 					root[ field_name ] = "";
-					node.addNode( Node( line_num, line_index, field_name, root[ field_name ] ) );
+					node.addNode( Vnode( line_num, line_index, field_name, root[ field_name ] ) );
 				} else {
 					auto const & legacy_idd_extensibles_array = legacy_idd_extensibles_iter.value();
 					ext_size = static_cast<int>( legacy_idd_extensibles_array.size() );
 					std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % ext_size ];
 					extensible_index++;
 					extensible[ field_name ] = "";
-					extensionNode->addNode( Node( line_num, line_index, field_name, extensible[ field_name ] ) );
+					extensionNode->addNode( Vnode( line_num, line_index, field_name, extensible[ field_name ] ) );
 				}
 				if ( ext_size && extensible_index % ext_size == 0 ) {
-					extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), ext_size );
+					extensionNode->insertExtensionObj( Vnode( line_num, line_index, "", extensible ), ext_size );
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
 				}
@@ -320,10 +395,10 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				for (; legacy_idd_index < min_fields; legacy_idd_index++) {
 					std::string const & field_name = legacy_idd_fields_array[ legacy_idd_index ];
 					root[ field_name ] = "";
-					node.addNode( Node( line_num, line_index, field_name, root[ field_name ] ) );
+					node.addNode( Vnode( line_num, line_index, field_name, root[ field_name ] ) );
 				}
 				if ( extensible.size() ) {
-					extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
+					extensionNode->insertExtensionObj( Vnode( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
 					array_of_extensions.push_back( extensible );
 					extensible.clear();
 				}
@@ -341,11 +416,11 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 			std::string const & field_name = legacy_idd_extensibles_array[ extensible_index % size ];
 			auto const val = parse_value( idf, index, success, schema_obj_extensions->at( field_name ) );
 			extensible[ field_name ] = std::move( val );
-			extensionNode->addNode( Node( line_num, line_index, field_name, extensible[ field_name ] ) );
+			extensionNode->addNode( Vnode( line_num, line_index, field_name, extensible[ field_name ] ) );
 			was_value_parsed = true;
 			extensible_index++;
 			if ( extensible_index && extensible_index % size == 0 ) {
-				extensionNode->insertExtensionObj( Node( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
+				extensionNode->insertExtensionObj( Vnode( line_num, line_index, "", extensible ), legacy_idd_extensibles_iter.value().size() );
 				array_of_extensions.push_back( extensible );
 				extensible.clear();
 			}
@@ -366,7 +441,7 @@ json IdfParser::parse_object( std::string const & idf, size_t & index, bool & su
 				root[ field ] = std::move( val );
 			}
 			if ( !success ) return root;
-			node.addNode( Node( line_num, line_index, field, root[ field ] ) );
+			node.addNode( Vnode( line_num, line_index, field, root[ field ] ) );
 		}
 	}
 	if ( array_of_extensions.size() ) {

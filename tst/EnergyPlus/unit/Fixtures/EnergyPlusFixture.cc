@@ -214,8 +214,8 @@
 #include <fstream>
 #include <algorithm>
 
-json::parser_callback_t EnergyPlus::EnergyPlusFixture::call_back = [](int EP_UNUSED( depth ), json::parse_event_t event, json &parsed,
-									   unsigned line_num, unsigned line_index) -> bool {
+json::parser_callback_t EnergyPlus::EnergyPlusFixture::call_back = [](size_t EP_UNUSED( depth ), json::parse_event_t event,
+                                                                      json & parsed, unsigned line_num, unsigned line_index) -> bool {
 	EnergyPlus::InputProcessor::state.traverse(event, parsed, line_num, line_index);
 	return true;
 };
@@ -592,6 +592,10 @@ namespace EnergyPlus {
 		InputProcessor::InitializeMaps();
 		InputProcessor::InitFiles();
 		SimulationManager::PostIPProcessing();
+
+		InputProcessor::state.initialize( & InputProcessor::schema );
+//		json::parse( InputProcessor::jdf.dump( 2 ), call_back );
+		InputProcessor::idf_parser.traverseIdfStructureForValidation( call_back );
 		InputProcessor::state.print_errors();
 
 		return true;
