@@ -82,7 +82,7 @@ namespace DataViewFactorInformation {
 		int NumOfSurfaces; // Number of surfaces in the zone
 		Array2D< Real64 > F; // View Factors
 //		Array2D< Real64 > ScriptF; // Hottel's Script F //Tuned Transposed
-		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> ScriptF;
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ScriptF;
 		Array1D< Real64 > Area; // Surface area
 		Array1D< Real64 > Emissivity; // Surface emissivity
 		Array1D< Real64 > Azimuth; // Azimuth angle of the surface (in degrees)

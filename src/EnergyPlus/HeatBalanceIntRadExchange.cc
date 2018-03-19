@@ -259,7 +259,7 @@ namespace HeatBalanceIntRadExchange {
 
 			auto const & zone( Zone( ZoneNum ) );
 			auto & zone_info( ZoneInfo( ZoneNum ) );
-			auto & zone_ScriptF( zone_info.ScriptF ); //Tuned Transposed
+//			auto & zone_ScriptF( zone_info.ScriptF ); //Tuned Transposed
 			auto & zone_SurfacePtr( zone_info.SurfacePtr );
 			int const n_zone_Surfaces( zone_info.NumOfSurfaces );
 			size_type const s_zone_Surfaces( n_zone_Surfaces );
@@ -317,9 +317,9 @@ namespace HeatBalanceIntRadExchange {
 						}
 					}
 
-					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, zone_ScriptF );
+					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, zone_info.ScriptF );
 					// precalc - multiply by StefanBoltzmannConstant
-					zone_ScriptF *= StefanBoltzmannConst;
+					zone_info.ScriptF *= StefanBoltzmannConst;
 				}
 
 			} // End of check if SurfIterations = 0
@@ -1284,7 +1284,7 @@ namespace HeatBalanceIntRadExchange {
 		Array1< Real64 > const & A, // AREA VECTOR- ASSUMED,BE N ELEMENTS LONG
 		Array2< Real64 > const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
 		Array1< Real64 > & EMISS, // VECTOR OF SURFACE EMISSIVITIES
-		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
 	)
 	{
 
@@ -1340,7 +1340,7 @@ namespace HeatBalanceIntRadExchange {
 #endif
 
 		// Load Cmatrix with AF (AREA * DIRECT VIEW FACTOR) matrix
-		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
 		for ( auto j = 1; j <= N; j++ ) {
 			for ( auto i = 1; i <= N; i++ ) {
 				cMatrix(j - 1, i - 1) = A( i ) * F( j , i ); // tested to contain identical data as original Cmatrix
@@ -1374,177 +1374,15 @@ namespace HeatBalanceIntRadExchange {
 			auto const EMISS_fac = EMISS( i ) / (1 - EMISS( i ));
 			for (int j = 1; j <= N; j++ ) {
 				if (i == j) {
-					ScriptF( i - 1, j - 1) = EMISS_fac * ( cInverse.at( j - 1 ).at( i - 1 ) - EMISS( i ) );
+//					ScriptF( i - 1, j - 1) = EMISS_fac * ( cInverse.at( j - 1 ).at( i - 1 ) - EMISS( i ) );
+					ScriptF( i - 1, j - 1) = EMISS_fac * ( cInverse.at( i - 1 ).at( j - 1 ) - EMISS( i ) );
 				} else {
-					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse.at( j - 1 ).at( i - 1 );
+//					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse.at( j - 1 ).at( i - 1 );
+					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse.at( i - 1 ).at( j - 1 );
 				}
 			}
 		}
 	}
-
-	void
-	CalcScriptF(
-			int const N, // Number of surfaces
-			std::vector<double> const & A, // AREA VECTOR- ASSUMED,BE N ELEMENTS LONG
-			std::vector<std::vector<double>> const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
-			std::vector<double> & EMISS, // VECTOR OF SURFACE EMISSIVITIES
-			Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
-	) {
-		Real64 const MaxEmissLimit( 0.99999 ); // Limit the emissivity internally/avoid a divide by zero error
-
-#ifdef EP_Count_Calls
-		++NumCalcScriptF_Calls;
-#endif
-
-		// Load Cmatrix with AF (AREA * DIRECT VIEW FACTOR) matrix
-		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
-		for ( std::size_t j = 0; j < N; j++ ) {
-			for ( std::size_t i = 0; i < N; i++ ) {
-				cMatrix(j, i) = A.at( i ) * F.at( j ).at( i ); // tested to contain identical data as original Cmatrix
-			}
-		}
-
-		// Load Cmatrix with (AF - EMISS/REFLECTANCE) matrix
-		std::vector< Real64 > excite( EMISS.size() ); // Excitation vector = A*EMISS/REFLECTANCE
-		for ( int i = 0; i < EMISS.size(); i++ ) {
-			if ( EMISS.at( i ) > MaxEmissLimit ) {
-				EMISS.at( i ) = MaxEmissLimit; // Check/limit EMISS for this surface to avoid divide by zero below
-				ShowWarningError( "A thermal emissivity above 0.99999 was detected. This is not allowed. Value was reset to 0.99999" );
-			}
-			auto const EMISS_i_fac( A.at( i ) / ( 1.0 - EMISS.at( i ) ) );
-			excite.at( i ) = -EMISS.at( i ) * EMISS_i_fac; // Set up matrix columns for partial radiosity calculation
-			cMatrix( i , i ) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
-		}
-
-		// Scale Cinverse columns by excitation to get partial radiosity matrix
-		auto const tmpInverse = cMatrix.inverse();
-		std::vector< std::vector < Real64 > > cInverse(N, std::vector< Real64 >( N ) );
-		for (auto i = 0; i < tmpInverse.rows(); i++) {
-			for (auto j = 0; j < tmpInverse.cols(); j++) {
-				cInverse.at( i ).at ( j ) = tmpInverse( i, j ) *  excite.at( i );
-			}
-		}
-
-		// Form Script F matrix transposed
-		for ( int i = 0; i < N; i++ ) {
-			auto const EMISS_fac = EMISS.at( i ) / (1 - EMISS.at( i ));
-			for (int j = 0; j < N; j++ ) {
-				if (i == j) {
-					ScriptF( i, j ) = EMISS_fac * ( cInverse.at( j ).at( i ) - EMISS.at( i ) );
-				} else {
-					ScriptF( i, j ) = EMISS_fac * cInverse.at( j ).at( i );
-				}
-			}
-		}
-
-	}
-
-//	void
-//	CalcMatrixInverse(
-//		Array2< Real64 > & A, // Matrix: Gets reduced to L\U form
-//		Array2< Real64 > & I // Returned as inverse matrix
-//	)
-//	{
-//		// SUBROUTINE INFORMATION:
-//		//       AUTHOR         Jakob Asmundsson
-//		//       DATE WRITTEN   January 1999
-//		//       MODIFIED       September 2000 (RKS for EnergyPlus)
-//		//       RE-ENGINEERED  June 2014 (Stuart Mentzer): Performance/memory tuning rewrite
-//
-//		// PURPOSE OF THIS SUBROUTINE:
-//		// To find the inverse of Matrix, using partial pivoting.
-//
-//		// METHODOLOGY EMPLOYED:
-//		// Inverse is found using partial pivoting and Gauss elimination
-//
-//		// REFERENCES:
-//		// Any Linear Algebra book
-//
-//		// Validation
-//		assert( A.square() );
-//		assert( A.I1() == A.I2() );
-//		assert( equal_dimensions( A, I ) );
-//
-//		// Initialization
-//		int const l( A.l1() );
-//		int const u( A.u1() );
-//		int const n( u - l + 1 );
-//		I.to_identity(); // I starts out as identity
-//
-//		// Could do row scaling here to improve condition and then check min pivot isn't too small
-//
-//		// Compute in-place LU decomposition of [A|I] with row pivoting
-//		for ( int i = l; i <= u; ++i ) {
-//
-//			// Find pivot row in column i below diagonal
-//			int iPiv = i;
-//			Real64 aPiv( std::abs( A( i, i ) ) );
-//			auto ik( A.index( i, i + 1 ) );
-//			for ( int k = i + 1; k <= u; ++k, ++ik ) {
-//				Real64 const aAki( std::abs( A[ ik ] ) ); // [ ik ] == ( i, k )
-//				if ( aAki > aPiv ) {
-//					iPiv = k;
-//					aPiv = aAki;
-//				}
-//			}
-//			assert( aPiv != 0.0 ); //? Is zero pivot possible for some user inputs? If so if test/handler needed
-//
-//			// Swap row i with pivot row
-//			if ( iPiv != i ) {
-//				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
-//				auto pj( A.index( l, iPiv ) ); // [ pj ] == ( j, iPiv )
-//				for ( int j = l; j <= u; ++j, ji += n, pj += n ) {
-//					Real64 const Aij( A[ ji ] );
-//					A[ ji ] = A[ pj ];
-//					A[ pj ] = Aij;
-//					Real64 const Iij( I[ ji ] );
-//					I[ ji ] = I[ pj ];
-//					I[ pj ] = Iij;
-//				}
-//			}
-//
-//			// Put multipliers in column i and reduce block below A(i,i)
-//			Real64 const Aii_inv( 1.0 / A( i, i ) );
-//			for ( int k = i + 1; k <= u; ++k ) {
-//				Real64 const multiplier( A( i, k ) * Aii_inv );
-//				A( i, k ) = multiplier;
-//				if ( multiplier != 0.0 ) {
-//					auto ji( A.index( i + 1, i ) ); // [ ji ] == ( j, i )
-//					auto jk( A.index( i + 1, k ) ); // [ jk ] == ( j, k )
-//					for ( int j = i + 1; j <= u; ++j, ji += n, jk += n ) {
-//						A[ jk ] -= multiplier * A[ ji ];
-//					}
-//					ji = A.index( l, i );
-//					jk = A.index( l, k );
-//					for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
-//						Real64 const Iij( I[ ji ] );
-//						if ( Iij != 0.0 ) {
-//							I[ jk ] -= multiplier * Iij;
-//						}
-//					}
-//				}
-//			}
-//
-//		}
-//
-//		// Perform back-substitution on [U|I] to put inverse in I
-//		for ( int k = u; k >= l; --k ) {
-//			Real64 const Akk_inv( 1.0 / A( k, k ) );
-//			auto jk( A.index( l, k ) ); // [ jk ] == ( j, k )
-//			for ( int j = l; j <= u; ++j, jk += n ) {
-//				I[ jk ] *= Akk_inv;
-//			}
-//			auto ik( A.index( k, l ) ); // [ ik ] == ( i, k )
-//			for ( int i = l; i < k; ++i, ++ik ) { // Eliminate kth column entries from I in rows above k
-//				Real64 const Aik( A[ ik ] );
-//				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
-//				auto jk( A.index( l, k ) ); // [ jk ] == ( k, j )
-//				for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
-//					I[ ji ] -= Aik * I[ jk ];
-//				}
-//			}
-//		}
-//	}
 
 } // HeatBalanceIntRadExchange
 
