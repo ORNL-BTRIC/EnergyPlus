@@ -57,6 +57,9 @@
 
 // EnergyPlus Headers
 #include <EnergyPlus.hh>
+#define EIGEN_USE_MKL_ALL
+#include <Eigen/Dense>
+#include <Eigen/LU>
 
 namespace EnergyPlus {
 
@@ -147,6 +150,15 @@ namespace HeatBalanceIntRadExchange {
 		Array2< Real64 > const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
 		Array1< Real64 > & EMISS, // VECTOR OF SURFACE EMISSIVITIES
 		Array2< Real64 > & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
+	);
+
+	void
+	CalcScriptF(
+			int const N, // Number of surfaces
+			std::vector<double> const & A, // AREA VECTOR- ASSUMED,BE N ELEMENTS LONG
+			std::vector<std::vector<double>> const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
+			std::vector<double> & EMISS, // VECTOR OF SURFACE EMISSIVITIES
+			Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
 	);
 
 	void

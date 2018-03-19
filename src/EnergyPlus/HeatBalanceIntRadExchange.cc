@@ -48,9 +48,6 @@
 // C++ Headers
 #include <cassert>
 #include <cmath>
-#define EIGEN_USE_MKL_ALL
-#include <Eigen/Dense>
-#include <Eigen/LU>
 
 // ObjexxFCL Headers
 #include <ObjexxFCL/Array.functions.hh>
@@ -1373,6 +1370,63 @@ namespace HeatBalanceIntRadExchange {
 				}
 			}
 		}
+	}
+
+	void
+	CalcScriptF(
+			int const N, // Number of surfaces
+			std::vector<double> const & A, // AREA VECTOR- ASSUMED,BE N ELEMENTS LONG
+			std::vector<std::vector<double>> const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
+			std::vector<double> & EMISS, // VECTOR OF SURFACE EMISSIVITIES
+			Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
+	) {
+		Real64 const MaxEmissLimit( 0.99999 ); // Limit the emissivity internally/avoid a divide by zero error
+
+#ifdef EP_Count_Calls
+		++NumCalcScriptF_Calls;
+#endif
+
+		// Load Cmatrix with AF (AREA * DIRECT VIEW FACTOR) matrix
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
+		for ( std::size_t j = 0; j < N; j++ ) {
+			for ( std::size_t i = 0; i < N; i++ ) {
+				cMatrix(j, i) = A.at( i ) * F.at( j ).at( i ); // tested to contain identical data as original Cmatrix
+			}
+		}
+
+		// Load Cmatrix with (AF - EMISS/REFLECTANCE) matrix
+		std::vector< Real64 > excite( EMISS.size() ); // Excitation vector = A*EMISS/REFLECTANCE
+		for ( int i = 0; i < EMISS.size(); i++ ) {
+			if ( EMISS.at( i ) > MaxEmissLimit ) {
+				EMISS.at( i ) = MaxEmissLimit; // Check/limit EMISS for this surface to avoid divide by zero below
+				ShowWarningError( "A thermal emissivity above 0.99999 was detected. This is not allowed. Value was reset to 0.99999" );
+			}
+			auto const EMISS_i_fac( A.at( i ) / ( 1.0 - EMISS.at( i ) ) );
+			excite.at( i ) = -EMISS.at( i ) * EMISS_i_fac; // Set up matrix columns for partial radiosity calculation
+			cMatrix( i , i ) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
+		}
+
+		// Scale Cinverse columns by excitation to get partial radiosity matrix
+		auto const tmpInverse = cMatrix.inverse();
+		std::vector< std::vector < Real64 > > cInverse(N, std::vector< Real64 >( N ) );
+		for (auto i = 0; i < tmpInverse.rows(); i++) {
+			for (auto j = 0; j < tmpInverse.cols(); j++) {
+				cInverse.at( i ).at ( j ) = tmpInverse( i, j ) *  excite.at( i );
+			}
+		}
+
+		// Form Script F matrix transposed
+		for ( int i = 0; i < N; i++ ) {
+			auto const EMISS_fac = EMISS.at( i ) / (1 - EMISS.at( i ));
+			for (int j = 0; j < N; j++ ) {
+				if (i == j) {
+					ScriptF( i, j ) = EMISS_fac * ( cInverse.at( j ).at( i ) - EMISS.at( i ) );
+				} else {
+					ScriptF( i, j ) = EMISS_fac * cInverse.at( j ).at( i );
+				}
+			}
+		}
+
 	}
 
 //	void
