@@ -397,7 +397,8 @@ namespace HeatBalanceIntRadExchange {
 					Real64 netLWRadToRecSurf_cor( 0.0 ); // Correction
 					Real64 IRfromParentZone_acc( 0.0 ); // Local accumulator
 					for ( size_type SendZoneSurfNum = 0; SendZoneSurfNum < s_zone_Surfaces; ++SendZoneSurfNum, ++lSR ) {
-						Real64 const scriptF( zone_ScriptF[ lSR ] ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+//						Real64 const scriptF( zone_ScriptF[ lSR ] ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+						Real64 const scriptF( zone_info.ScriptF( SendZoneSurfNum, RecZoneSurfNum ) );
 #ifdef EP_HBIRE_SEQ
 						Real64 const scriptF_temp_ink_4th( scriptF * SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] );
 #else
@@ -430,7 +431,8 @@ namespace HeatBalanceIntRadExchange {
 					for ( size_type SendZoneSurfNum = 0; SendZoneSurfNum < s_zone_Surfaces; ++SendZoneSurfNum, ++lSR ) {
 						if ( RecZoneSurfNum != SendZoneSurfNum ) {
 #ifdef EP_HBIRE_SEQ
-							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+							netLWRadToRecSurf_acc += zone_info.ScriptF( SendZoneSurfNum, RecZoneSurfNum ) * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+//							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
 #else
 							SendSurfNum = zone_SurfacePtr[ SendZoneSurfNum ] - 1;
 							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
@@ -557,7 +559,12 @@ namespace HeatBalanceIntRadExchange {
 
 			// Allocate the parts of the derived type
 			ZoneInfo( ZoneNum ).F.dimension( NumOfZoneSurfaces, NumOfZoneSurfaces, 0.0 );
-			ZoneInfo( ZoneNum ).ScriptF.dimension( NumOfZoneSurfaces, NumOfZoneSurfaces, 0.0 );
+			ZoneInfo( ZoneNum ).ScriptF.resize( NumOfZoneSurfaces, NumOfZoneSurfaces );
+			for (std::size_t i = 0; i < ZoneInfo( ZoneNum ).ScriptF.rows(); i++) {
+				for (std::size_t j = 0; j < ZoneInfo( ZoneNum ).ScriptF.cols(); j++) {
+					ZoneInfo( ZoneNum ).ScriptF(i, j) = 0;
+				}
+			}
 			ZoneInfo( ZoneNum ).Area.dimension( NumOfZoneSurfaces, 0.0 );
 			ZoneInfo( ZoneNum ).Emissivity.dimension( NumOfZoneSurfaces, 0.0 );
 			ZoneInfo( ZoneNum ).Azimuth.dimension( NumOfZoneSurfaces, 0.0 );
@@ -592,7 +599,11 @@ namespace HeatBalanceIntRadExchange {
 			if ( NumOfZoneSurfaces == 1 ) {
 				// If there is only one surface in a zone, then there is no radiant exchange
 				ZoneInfo( ZoneNum ).F = 0.0;
-				ZoneInfo( ZoneNum ).ScriptF = 0.0;
+				for (std::size_t i = 0; i < ZoneInfo( ZoneNum ).ScriptF.rows(); i++) {
+					for (std::size_t j = 0; j < ZoneInfo( ZoneNum ).ScriptF.cols(); j++) {
+						ZoneInfo( ZoneNum ).ScriptF(i , j) = 0;
+					}
+				}
 				if ( DisplayAdvancedReportVariables ) gio::write( OutputFileInits, fmtA ) << "Surface View Factor Check Values," + Zone( ZoneNum ).Name + ",0,0,0,-1,0,0";
 				continue; // Go to the next zone in the  ZoneNum DO loop
 			}
@@ -729,7 +740,7 @@ namespace HeatBalanceIntRadExchange {
 						<< Surface( ZoneInfo( ZoneNum ).SurfacePtr( Findex ) ).Name;
 					for ( int SurfNum = 1; SurfNum <= NumOfZoneSurfaces; ++SurfNum ) {
 						gio::write( OutputFileInits, "(',',A,$)" )
-							<< RoundSigDigits( ZoneInfo( ZoneNum ).ScriptF( Findex, SurfNum ), 4 );
+							<< RoundSigDigits( ZoneInfo( ZoneNum ).ScriptF( Findex - 1, SurfNum - 1 ), 4 );
 					} gio::write( OutputFileInits );
 				}
 			}
@@ -1273,7 +1284,7 @@ namespace HeatBalanceIntRadExchange {
 		Array1< Real64 > const & A, // AREA VECTOR- ASSUMED,BE N ELEMENTS LONG
 		Array2< Real64 > const & F, // DIRECT VIEW FACTOR MATRIX (N X N)
 		Array1< Real64 > & EMISS, // VECTOR OF SURFACE EMISSIVITIES
-		Array2< Real64 > & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic> & ScriptF // MATRIX OF SCRIPT F FACTORS (N X N) //Tuned Transposed
 	)
 	{
 
@@ -1318,7 +1329,7 @@ namespace HeatBalanceIntRadExchange {
 		assert( ( F.l1() == 1 ) && ( F.u1() == N ) );
 		assert( ( F.l2() == 1 ) && ( F.u2() == N ) );
 		assert( ( EMISS.l() == 1 ) && ( EMISS.u() == N ) );
-		assert( equal_dimensions( F, ScriptF ) );
+//		assert( equal_dimensions( F, ScriptF ) );
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 
@@ -1359,14 +1370,13 @@ namespace HeatBalanceIntRadExchange {
 
 		// Form Script F matrix transposed
 //		assert( equal_dimensions( Cinverse, ScriptF ) ); // For linear indexing
-		assert( cInverse.size() * cInverse[0].size() == ScriptF.size1() * ScriptF.size2() );
 		for ( int i = 1; i <= N; i++ ) {
 			auto const EMISS_fac = EMISS( i ) / (1 - EMISS( i ));
 			for (int j = 1; j <= N; j++ ) {
 				if (i == j) {
-					ScriptF( i, j ) = EMISS_fac * ( cInverse.at( j - 1 ).at( i - 1 ) - EMISS( i ) );
+					ScriptF( i - 1, j - 1) = EMISS_fac * ( cInverse.at( j - 1 ).at( i - 1 ) - EMISS( i ) );
 				} else {
-					ScriptF( i, j ) = EMISS_fac * cInverse.at( j - 1 ).at( i - 1 );
+					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse.at( j - 1 ).at( i - 1 );
 				}
 			}
 		}
