@@ -55,6 +55,8 @@
 // EnergyPlus Headers
 #include <EnergyPlus.hh>
 #include <DataGlobals.hh>
+#define EIGEN_USE_MKL_ALL
+#include <Eigen/Dense>
 
 namespace EnergyPlus {
 
@@ -78,7 +80,8 @@ namespace DataViewFactorInformation {
 		std::string Name; // Zone name
 		int NumOfSurfaces; // Number of surfaces in the zone
 		Array2D< Real64 > F; // View Factors
-		Array2D< Real64 > ScriptF; // Hottel's Script F //Tuned Transposed
+//		Array2D< Real64 > ScriptF; // Hottel's Script F //Tuned Transposed
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> ScriptF; // Hottel's Script F //Tuned Transposed
 		Array1D< Real64 > Area; // Surface area
 		Array1D< Real64 > Emissivity; // Surface emissivity
 		Array1D< Real64 > Azimuth; // Azimuth angle of the surface (in degrees)

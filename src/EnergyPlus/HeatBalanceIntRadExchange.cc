@@ -259,7 +259,7 @@ namespace HeatBalanceIntRadExchange {
 
 			auto const & zone( Zone( ZoneNum ) );
 			auto & zone_info( ZoneInfo( ZoneNum ) );
-			auto & zone_ScriptF( zone_info.ScriptF ); //Tuned Transposed
+//			auto & zone_ScriptF( zone_info.ScriptF ); //Tuned Transposed
 			auto & zone_SurfacePtr( zone_info.SurfacePtr );
 			int const n_zone_Surfaces( zone_info.NumOfSurfaces );
 			size_type const s_zone_Surfaces( n_zone_Surfaces );
@@ -317,23 +317,24 @@ namespace HeatBalanceIntRadExchange {
 						}
 					}
 
-					Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenZoneScriptF(zone_ScriptF.size1(), zone_ScriptF.size2());
-					for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
-						for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
-							eigenZoneScriptF(i, j) = zone_ScriptF(i + 1, j + 1);
-						}
-					}
+//					Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenZoneScriptF(zone_ScriptF.rows(), zone_ScriptF.cols());
+//					for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
+//						for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
+//							eigenZoneScriptF(i, j) = zone_ScriptF(i + 1, j + 1);
+//						}
+//					}
 
 //					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, zone_ScriptF );
-					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, eigenZoneScriptF );
+//					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, eigenZoneScriptF );
+					CalcScriptF( n_zone_Surfaces, zone_info.Area, zone_info.F, zone_info.Emissivity, zone_info.ScriptF );
 
-					for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
-						for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
-							zone_ScriptF(i + 1, j + 1) = eigenZoneScriptF(i, j);
-						}
-					}
+//					for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
+//						for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
+//							zone_ScriptF(i + 1, j + 1) = eigenZoneScriptF(i, j);
+//						}
+//					}
 					// precalc - multiply by StefanBoltzmannConstant
-					zone_ScriptF *= StefanBoltzmannConst;
+					zone_info.ScriptF *= StefanBoltzmannConst;
 				}
 
 			} // End of check if SurfIterations = 0
@@ -411,7 +412,8 @@ namespace HeatBalanceIntRadExchange {
 					Real64 netLWRadToRecSurf_cor( 0.0 ); // Correction
 					Real64 IRfromParentZone_acc( 0.0 ); // Local accumulator
 					for ( size_type SendZoneSurfNum = 0; SendZoneSurfNum < s_zone_Surfaces; ++SendZoneSurfNum, ++lSR ) {
-						Real64 const scriptF( zone_ScriptF[ lSR ] ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+//						Real64 const scriptF( zone_ScriptF[ lSR ] ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+						Real64 const scriptF( zone_info.ScriptF( SendZoneSurfNum, RecZoneSurfNum ) ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
 #ifdef EP_HBIRE_SEQ
 						Real64 const scriptF_temp_ink_4th( scriptF * SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] );
 #else
@@ -444,7 +446,8 @@ namespace HeatBalanceIntRadExchange {
 					for ( size_type SendZoneSurfNum = 0; SendZoneSurfNum < s_zone_Surfaces; ++SendZoneSurfNum, ++lSR ) {
 						if ( RecZoneSurfNum != SendZoneSurfNum ) {
 #ifdef EP_HBIRE_SEQ
-							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+//							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
+							netLWRadToRecSurf_acc += zone_info.ScriptF( SendZoneSurfNum, RecZoneSurfNum ) * ( SendSurfaceTempInKto4thPrecalc[ SendZoneSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
 #else
 							SendSurfNum = zone_SurfacePtr[ SendZoneSurfNum ] - 1;
 							netLWRadToRecSurf_acc += zone_ScriptF[ lSR ] * ( SendSurfaceTempInKto4thPrecalc[ SendSurfNum ] - RecSurfTempInKTo4th ); // [ lSR ] == ( SendZoneSurfNum+1, RecZoneSurfNum+1 )
@@ -571,7 +574,13 @@ namespace HeatBalanceIntRadExchange {
 
 			// Allocate the parts of the derived type
 			ZoneInfo( ZoneNum ).F.dimension( NumOfZoneSurfaces, NumOfZoneSurfaces, 0.0 );
-			ZoneInfo( ZoneNum ).ScriptF.dimension( NumOfZoneSurfaces, NumOfZoneSurfaces, 0.0 );
+//			ZoneInfo( ZoneNum ).ScriptF.dimension( NumOfZoneSurfaces, NumOfZoneSurfaces, 0.0 );
+			ZoneInfo( ZoneNum ).ScriptF.conservativeResize( NumOfZoneSurfaces, NumOfZoneSurfaces );
+			for (int i = 0; i < ZoneInfo( ZoneNum ).ScriptF.rows(); i++) {
+				for (int j = 0; j < ZoneInfo( ZoneNum ).ScriptF.cols(); j++) {
+					ZoneInfo( ZoneNum ).ScriptF(i, j) = 0;
+				}
+			}
 			ZoneInfo( ZoneNum ).Area.dimension( NumOfZoneSurfaces, 0.0 );
 			ZoneInfo( ZoneNum ).Emissivity.dimension( NumOfZoneSurfaces, 0.0 );
 			ZoneInfo( ZoneNum ).Azimuth.dimension( NumOfZoneSurfaces, 0.0 );
@@ -606,7 +615,14 @@ namespace HeatBalanceIntRadExchange {
 			if ( NumOfZoneSurfaces == 1 ) {
 				// If there is only one surface in a zone, then there is no radiant exchange
 				ZoneInfo( ZoneNum ).F = 0.0;
-				ZoneInfo( ZoneNum ).ScriptF = 0.0;
+//				ZoneInfo( ZoneNum ).ScriptF = 0.0;
+//				ZoneInfo (ZoneNum ).ScriptF.resize(0, 0);
+				for (int i = 0; i < ZoneInfo( ZoneNum ).ScriptF.rows(); i++) {
+					for (int j = 0; j < ZoneInfo( ZoneNum ).ScriptF.cols(); j++) {
+						ZoneInfo( ZoneNum ).ScriptF(i, j) = 0;
+					}
+				}
+
 				if ( DisplayAdvancedReportVariables ) gio::write( OutputFileInits, fmtA ) << "Surface View Factor Check Values," + Zone( ZoneNum ).Name + ",0,0,0,-1,0,0";
 				continue; // Go to the next zone in the  ZoneNum DO loop
 			}
@@ -633,20 +649,21 @@ namespace HeatBalanceIntRadExchange {
 
 			FixViewFactors( NumOfZoneSurfaces, ZoneInfo( ZoneNum ).Area, ZoneInfo( ZoneNum ).F, ZoneNum, CheckValue1, CheckValue2, FinalCheckValue, NumIterations, FixedRowSum );
 
-			Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenZoneScriptF(ZoneInfo( ZoneNum ).ScriptF.size1(), ZoneInfo( ZoneNum ).ScriptF.size2());
-			for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
-				for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
-					eigenZoneScriptF(i, j) = ZoneInfo(ZoneNum).ScriptF(i + 1, j + 1);
-				}
-			}
+//			Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> eigenZoneScriptF(ZoneInfo( ZoneNum ).ScriptF.size1(), ZoneInfo( ZoneNum ).ScriptF.size2());
+//			for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
+//				for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
+//					eigenZoneScriptF(i, j) = ZoneInfo(ZoneNum).ScriptF(i + 1, j + 1);
+//				}
+//			}
 			// Calculate the script F factors
 //			CalcScriptF( NumOfZoneSurfaces, ZoneInfo( ZoneNum ).Area, ZoneInfo( ZoneNum ).F, ZoneInfo( ZoneNum ).Emissivity, ZoneInfo( ZoneNum ).ScriptF );
-			CalcScriptF( NumOfZoneSurfaces, ZoneInfo( ZoneNum ).Area, ZoneInfo( ZoneNum ).F, ZoneInfo( ZoneNum ).Emissivity, eigenZoneScriptF );
-			for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
-				for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
-					ZoneInfo(ZoneNum).ScriptF(i + 1, j + 1) = eigenZoneScriptF(i, j);
-				}
-			}
+//			CalcScriptF( NumOfZoneSurfaces, ZoneInfo( ZoneNum ).Area, ZoneInfo( ZoneNum ).F, ZoneInfo( ZoneNum ).Emissivity, eigenZoneScriptF );
+			CalcScriptF( NumOfZoneSurfaces, ZoneInfo( ZoneNum ).Area, ZoneInfo( ZoneNum ).F, ZoneInfo( ZoneNum ).Emissivity, ZoneInfo( ZoneNum ).ScriptF );
+//			for (auto i = 0; i < eigenZoneScriptF.rows(); i++) {
+//				for (auto j = 0; j < eigenZoneScriptF.cols(); j++) {
+//					ZoneInfo(ZoneNum).ScriptF(i + 1, j + 1) = eigenZoneScriptF(i, j);
+//				}
+//			}
 
 			if ( ViewFactorReport ) { // Write to SurfInfo File
 				// Zone Surface Information Output
@@ -1345,6 +1362,8 @@ namespace HeatBalanceIntRadExchange {
 		assert( ( F.l2() == 1 ) && ( F.u2() == N ) );
 		assert( ( EMISS.l() == 1 ) && ( EMISS.u() == N ) );
 //		assert( equal_dimensions( F, ScriptF ) );
+		assert( F.size1() == ScriptF.rows() );
+		assert( F.size2() == ScriptF.cols() );
 
 		// SUBROUTINE LOCAL VARIABLE DECLARATIONS:
 
@@ -1355,155 +1374,196 @@ namespace HeatBalanceIntRadExchange {
 #endif
 
 		// Load Cmatrix with AF (AREA * DIRECT VIEW FACTOR) matrix
+		Array2D< Real64 > badCmatrix( N, N );
+		Array2D< Real64 >::size_type l( 0u );
+
 		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
 		for ( auto i = 1; i <= N; i++ ) {
-			for ( auto j = 1; j <= N; j++ ) {
+			for ( auto j = 1; j <= N; j++, l++ ) {
 				cMatrix(i - 1, j - 1) = A( j ) * F( i , j ); // tested to contain identical data as original Cmatrix
+//				cMatrix(i - 1, j - 1) = A( j ) * F( j , i );
+				badCmatrix[l] = A(j) * F[l];
+//				badCmatrix(i, j) = A( j ) * F( j, i );
 			}
 		}
 
+
 		// Load Cmatrix with (AF - EMISS/REFLECTANCE) matrix
-		std::vector< Real64 > excite( N ); // Excitation vector = A*EMISS/REFLECTANCE
+//		std::vector< Real64 > excite( N ); // Excitation vector = A*EMISS/REFLECTANCE
+		Eigen::Matrix<Real64, Eigen::Dynamic, 1> excite(N); // Excitation vector = A*EMISS/REFLECTANCE
 		for ( int i = 1; i <= N; i++ ) {
 			if ( EMISS( i ) > MaxEmissLimit ) {
 				EMISS( i ) = MaxEmissLimit; // Check/limit EMISS for this surface to avoid divide by zero below
 				ShowWarningError( "A thermal emissivity above 0.99999 was detected. This is not allowed. Value was reset to 0.99999" );
 			}
 			auto const EMISS_i_fac( A( i ) / ( 1.0 - EMISS( i ) ) );
-			excite.at( i - 1 ) = -EMISS( i ) * EMISS_i_fac; // Set up matrix columns for partial radiosity calculation
+			excite( i - 1 ) = -EMISS( i ) * EMISS_i_fac; // Set up matrix columns for partial radiosity calculation
 			cMatrix( i - 1, i - 1) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
+			badCmatrix( i, i ) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
 		}
 
 		// Scale Cinverse columns by excitation to get partial radiosity matrix
-		auto const tmpInverse = cMatrix.inverse();
-		std::vector< std::vector < Real64 > > cInverse(N, std::vector< Real64 >( N ) );
-		for (auto i = 0; i < tmpInverse.rows(); i++) {
-			for (auto j = 0; j < tmpInverse.cols(); j++) {
-				cInverse.at( i ).at ( j ) = tmpInverse( i, j ) *  excite.at( i );
+//		auto const tmpInverse = cMatrix.inverse();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> tmpInverse = cMatrix.inverse();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> tmpInverse;
+		Eigen::FullPivLU<Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> idk(cMatrix);
+//		idk.inverse();
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = idk.inverse();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = idk.inverse().colwise() * excite.array();
+
+		Array2D< Real64 > badInverse( N, N );
+		CalcMatrixInverse(badCmatrix, badInverse);
+		badCmatrix.clear();
+
+
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = tmpInverse.array().colwise() * excite.array();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = cMatrix.inverse().array().colwise() * excite.array();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = testInverse.array().colwise() * excite.array();
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = testInverse;
+//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse(cInverse.rows(), cInverse.cols());
+
+//		std::vector< std::vector < Real64 > > cInverse(N, std::vector< Real64 >( N ) );
+		for (auto i = 0; i < cInverse.rows(); i++) {
+			for (auto j = 0; j < cInverse.cols(); j++) {
+				cInverse( i , j ) = cInverse( i, j ) *  excite( i );
+				badInverse( i + 1, j + 1) = badInverse(i + 1, j + 1) * excite( i );
 			}
 		}
 
+		for (int i = 0; i < N; i++) {
+			for (int j = 0; j < N; j++) {
+				if (std::abs(badInverse(i + 1, j + 1) - cInverse(i, j)) > 0.000001) {
+					auto bad = badInverse( i + 1, j + 1);
+					auto better = cInverse(i, j);
+					auto wtf = 0;
+				}
+			}
+		}
+
+		badInverse.clear();
+
 		// Form Script F matrix transposed
 //		assert( equal_dimensions( Cinverse, ScriptF ) ); // For linear indexing
-//		assert( cInverse.size() * cInverse[0].size() == ScriptF.size1() * ScriptF.size2() );
+		assert( cInverse.rows() == ScriptF.rows());
+		assert( cInverse.cols() == ScriptF.cols() );
 		for ( int i = 1; i <= N; i++ ) {
 			auto const EMISS_fac = EMISS( i ) / (1 - EMISS( i ));
 			for (int j = 1; j <= N; j++ ) {
 				if (i == j) {
-					ScriptF( i - 1, j - 1 ) = EMISS_fac * ( cInverse.at( j - 1 ).at( i - 1 ) - EMISS( i ) );
+					ScriptF( i - 1, j - 1 ) = EMISS_fac * ( cInverse( j - 1 , i - 1 ) - EMISS( i ) );
 				} else {
-					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse.at( j - 1 ).at( i - 1 );
+					ScriptF( i - 1, j - 1 ) = EMISS_fac * cInverse( j - 1 , i - 1 );
 				}
 			}
 		}
 	}
 
-//	void
-//	CalcMatrixInverse(
-//		Array2< Real64 > & A, // Matrix: Gets reduced to L\U form
-//		Array2< Real64 > & I // Returned as inverse matrix
-//	)
-//	{
-//		// SUBROUTINE INFORMATION:
-//		//       AUTHOR         Jakob Asmundsson
-//		//       DATE WRITTEN   January 1999
-//		//       MODIFIED       September 2000 (RKS for EnergyPlus)
-//		//       RE-ENGINEERED  June 2014 (Stuart Mentzer): Performance/memory tuning rewrite
-//
-//		// PURPOSE OF THIS SUBROUTINE:
-//		// To find the inverse of Matrix, using partial pivoting.
-//
-//		// METHODOLOGY EMPLOYED:
-//		// Inverse is found using partial pivoting and Gauss elimination
-//
-//		// REFERENCES:
-//		// Any Linear Algebra book
-//
-//		// Validation
-//		assert( A.square() );
-//		assert( A.I1() == A.I2() );
-//		assert( equal_dimensions( A, I ) );
-//
-//		// Initialization
-//		int const l( A.l1() );
-//		int const u( A.u1() );
-//		int const n( u - l + 1 );
-//		I.to_identity(); // I starts out as identity
-//
-//		// Could do row scaling here to improve condition and then check min pivot isn't too small
-//
-//		// Compute in-place LU decomposition of [A|I] with row pivoting
-//		for ( int i = l; i <= u; ++i ) {
-//
-//			// Find pivot row in column i below diagonal
-//			int iPiv = i;
-//			Real64 aPiv( std::abs( A( i, i ) ) );
-//			auto ik( A.index( i, i + 1 ) );
-//			for ( int k = i + 1; k <= u; ++k, ++ik ) {
-//				Real64 const aAki( std::abs( A[ ik ] ) ); // [ ik ] == ( i, k )
-//				if ( aAki > aPiv ) {
-//					iPiv = k;
-//					aPiv = aAki;
-//				}
-//			}
-//			assert( aPiv != 0.0 ); //? Is zero pivot possible for some user inputs? If so if test/handler needed
-//
-//			// Swap row i with pivot row
-//			if ( iPiv != i ) {
-//				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
-//				auto pj( A.index( l, iPiv ) ); // [ pj ] == ( j, iPiv )
-//				for ( int j = l; j <= u; ++j, ji += n, pj += n ) {
-//					Real64 const Aij( A[ ji ] );
-//					A[ ji ] = A[ pj ];
-//					A[ pj ] = Aij;
-//					Real64 const Iij( I[ ji ] );
-//					I[ ji ] = I[ pj ];
-//					I[ pj ] = Iij;
-//				}
-//			}
-//
-//			// Put multipliers in column i and reduce block below A(i,i)
-//			Real64 const Aii_inv( 1.0 / A( i, i ) );
-//			for ( int k = i + 1; k <= u; ++k ) {
-//				Real64 const multiplier( A( i, k ) * Aii_inv );
-//				A( i, k ) = multiplier;
-//				if ( multiplier != 0.0 ) {
-//					auto ji( A.index( i + 1, i ) ); // [ ji ] == ( j, i )
-//					auto jk( A.index( i + 1, k ) ); // [ jk ] == ( j, k )
-//					for ( int j = i + 1; j <= u; ++j, ji += n, jk += n ) {
-//						A[ jk ] -= multiplier * A[ ji ];
-//					}
-//					ji = A.index( l, i );
-//					jk = A.index( l, k );
-//					for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
-//						Real64 const Iij( I[ ji ] );
-//						if ( Iij != 0.0 ) {
-//							I[ jk ] -= multiplier * Iij;
-//						}
-//					}
-//				}
-//			}
-//
-//		}
-//
-//		// Perform back-substitution on [U|I] to put inverse in I
-//		for ( int k = u; k >= l; --k ) {
-//			Real64 const Akk_inv( 1.0 / A( k, k ) );
-//			auto jk( A.index( l, k ) ); // [ jk ] == ( j, k )
-//			for ( int j = l; j <= u; ++j, jk += n ) {
-//				I[ jk ] *= Akk_inv;
-//			}
-//			auto ik( A.index( k, l ) ); // [ ik ] == ( i, k )
-//			for ( int i = l; i < k; ++i, ++ik ) { // Eliminate kth column entries from I in rows above k
-//				Real64 const Aik( A[ ik ] );
-//				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
-//				auto jk( A.index( l, k ) ); // [ jk ] == ( k, j )
-//				for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
-//					I[ ji ] -= Aik * I[ jk ];
-//				}
-//			}
-//		}
-//	}
+	void
+	CalcMatrixInverse(
+		Array2< Real64 > & A, // Matrix: Gets reduced to L\U form
+		Array2< Real64 > & I // Returned as inverse matrix
+	)
+	{
+		// SUBROUTINE INFORMATION:
+		//       AUTHOR         Jakob Asmundsson
+		//       DATE WRITTEN   January 1999
+		//       MODIFIED       September 2000 (RKS for EnergyPlus)
+		//       RE-ENGINEERED  June 2014 (Stuart Mentzer): Performance/memory tuning rewrite
+
+		// PURPOSE OF THIS SUBROUTINE:
+		// To find the inverse of Matrix, using partial pivoting.
+
+		// METHODOLOGY EMPLOYED:
+		// Inverse is found using partial pivoting and Gauss elimination
+
+		// REFERENCES:
+		// Any Linear Algebra book
+
+		// Validation
+		assert( A.square() );
+		assert( A.I1() == A.I2() );
+		assert( equal_dimensions( A, I ) );
+
+		// Initialization
+		int const l( A.l1() );
+		int const u( A.u1() );
+		int const n( u - l + 1 );
+		I.to_identity(); // I starts out as identity
+
+		// Could do row scaling here to improve condition and then check min pivot isn't too small
+
+		// Compute in-place LU decomposition of [A|I] with row pivoting
+		for ( int i = l; i <= u; ++i ) {
+
+			// Find pivot row in column i below diagonal
+			int iPiv = i;
+			Real64 aPiv( std::abs( A( i, i ) ) );
+			auto ik( A.index( i, i + 1 ) );
+			for ( int k = i + 1; k <= u; ++k, ++ik ) {
+				Real64 const aAki( std::abs( A[ ik ] ) ); // [ ik ] == ( i, k )
+				if ( aAki > aPiv ) {
+					iPiv = k;
+					aPiv = aAki;
+				}
+			}
+			assert( aPiv != 0.0 ); //? Is zero pivot possible for some user inputs? If so if test/handler needed
+
+			// Swap row i with pivot row
+			if ( iPiv != i ) {
+				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
+				auto pj( A.index( l, iPiv ) ); // [ pj ] == ( j, iPiv )
+				for ( int j = l; j <= u; ++j, ji += n, pj += n ) {
+					Real64 const Aij( A[ ji ] );
+					A[ ji ] = A[ pj ];
+					A[ pj ] = Aij;
+					Real64 const Iij( I[ ji ] );
+					I[ ji ] = I[ pj ];
+					I[ pj ] = Iij;
+				}
+			}
+
+			// Put multipliers in column i and reduce block below A(i,i)
+			Real64 const Aii_inv( 1.0 / A( i, i ) );
+			for ( int k = i + 1; k <= u; ++k ) {
+				Real64 const multiplier( A( i, k ) * Aii_inv );
+				A( i, k ) = multiplier;
+				if ( multiplier != 0.0 ) {
+					auto ji( A.index( i + 1, i ) ); // [ ji ] == ( j, i )
+					auto jk( A.index( i + 1, k ) ); // [ jk ] == ( j, k )
+					for ( int j = i + 1; j <= u; ++j, ji += n, jk += n ) {
+						A[ jk ] -= multiplier * A[ ji ];
+					}
+					ji = A.index( l, i );
+					jk = A.index( l, k );
+					for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
+						Real64 const Iij( I[ ji ] );
+						if ( Iij != 0.0 ) {
+							I[ jk ] -= multiplier * Iij;
+						}
+					}
+				}
+			}
+
+		}
+
+		// Perform back-substitution on [U|I] to put inverse in I
+		for ( int k = u; k >= l; --k ) {
+			Real64 const Akk_inv( 1.0 / A( k, k ) );
+			auto jk( A.index( l, k ) ); // [ jk ] == ( j, k )
+			for ( int j = l; j <= u; ++j, jk += n ) {
+				I[ jk ] *= Akk_inv;
+			}
+			auto ik( A.index( k, l ) ); // [ ik ] == ( i, k )
+			for ( int i = l; i < k; ++i, ++ik ) { // Eliminate kth column entries from I in rows above k
+				Real64 const Aik( A[ ik ] );
+				auto ji( A.index( l, i ) ); // [ ji ] == ( j, i )
+				auto jk( A.index( l, k ) ); // [ jk ] == ( k, j )
+				for ( int j = l; j <= u; ++j, ji += n, jk += n ) {
+					I[ ji ] -= Aik * I[ jk ];
+				}
+			}
+		}
+	}
 
 } // HeatBalanceIntRadExchange
 
