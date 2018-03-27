@@ -1374,16 +1374,11 @@ namespace HeatBalanceIntRadExchange {
 #endif
 
 		// Load Cmatrix with AF (AREA * DIRECT VIEW FACTOR) matrix
-		Array2D< Real64 > badCmatrix( N, N );
-		Array2D< Real64 >::size_type l( 0u );
-
 		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cMatrix(N, N); // = (AF - EMISS/REFLECTANCE) matrix (but plays other roles)
 		for ( auto i = 1; i <= N; i++ ) {
-			for ( auto j = 1; j <= N; j++, l++ ) {
+			for ( auto j = 1; j <= N; j++ ) {
 				cMatrix(i - 1, j - 1) = A( j ) * F( i , j ); // tested to contain identical data as original Cmatrix
 //				cMatrix(i - 1, j - 1) = A( j ) * F( j , i );
-				badCmatrix[l] = A(j) * F[l];
-//				badCmatrix(i, j) = A( j ) * F( j, i );
 			}
 		}
 
@@ -1399,51 +1394,20 @@ namespace HeatBalanceIntRadExchange {
 			auto const EMISS_i_fac( A( i ) / ( 1.0 - EMISS( i ) ) );
 			excite( i - 1 ) = -EMISS( i ) * EMISS_i_fac; // Set up matrix columns for partial radiosity calculation
 			cMatrix( i - 1, i - 1) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
-			badCmatrix( i, i ) -= EMISS_i_fac; // Coefficient matrix for partial radiosity calculation
 		}
 
 		// Scale Cinverse columns by excitation to get partial radiosity matrix
-//		auto const tmpInverse = cMatrix.inverse();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> tmpInverse = cMatrix.inverse();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> tmpInverse;
-		Eigen::FullPivLU<Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>> idk(cMatrix);
-//		idk.inverse();
-		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = idk.inverse();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = idk.inverse().colwise() * excite.array();
+		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse =
+				Eigen::FullPivLU<Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>>(cMatrix).inverse();
+//		cInverse = tmpInverse.inverse().colwise() * excite.array();
 
-		Array2D< Real64 > badInverse( N, N );
-		CalcMatrixInverse(badCmatrix, badInverse);
-		badCmatrix.clear();
-
-
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = tmpInverse.array().colwise() * excite.array();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = cMatrix.inverse().array().colwise() * excite.array();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = testInverse.array().colwise() * excite.array();
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse = testInverse;
-//		Eigen::Matrix<Real64, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> cInverse(cInverse.rows(), cInverse.cols());
-
-//		std::vector< std::vector < Real64 > > cInverse(N, std::vector< Real64 >( N ) );
 		for (auto i = 0; i < cInverse.rows(); i++) {
 			for (auto j = 0; j < cInverse.cols(); j++) {
-				cInverse( i , j ) = cInverse( i, j ) *  excite( i );
-				badInverse( i + 1, j + 1) = badInverse(i + 1, j + 1) * excite( i );
+				cInverse( i , j ) *= excite( i );
 			}
 		}
-
-		for (int i = 0; i < N; i++) {
-			for (int j = 0; j < N; j++) {
-				if (std::abs(badInverse(i + 1, j + 1) - cInverse(i, j)) > 0.000001) {
-					auto bad = badInverse( i + 1, j + 1);
-					auto better = cInverse(i, j);
-					auto wtf = 0;
-				}
-			}
-		}
-
-		badInverse.clear();
 
 		// Form Script F matrix transposed
-//		assert( equal_dimensions( Cinverse, ScriptF ) ); // For linear indexing
 		assert( cInverse.rows() == ScriptF.rows());
 		assert( cInverse.cols() == ScriptF.cols() );
 		for ( int i = 1; i <= N; i++ ) {
