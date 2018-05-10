@@ -638,7 +638,7 @@ set(MKL_SDL True)
 set(MKL_MULTI_THREADED True)
 set(CMAKE_MODULE_PATH ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/cmake)
 set(MKL_ROOT ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/)
-set(MKL_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/third_party/Intel-MKL/include/)
+set(MKL_INCLUDE_DIR ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/include/)
 find_package(MKL REQUIRED)
 
 #set(
