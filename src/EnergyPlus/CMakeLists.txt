@@ -641,6 +641,9 @@ set(MKL_ROOT ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/)
 set(MKL_INCLUDE_DIR ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/include/)
 find_package(MKL REQUIRED)
 
+add_definitions(-DEIGEN_USE_MKL_ALL)
+include_directories(${MKL_INCLUDE_DIR})
+
 #set(
 #        INTELMKL
 #        ${EnergyPlus_SOURCE_DIR}/third_party/Intel-MKL/lib/intel64/libmkl_intel_lp64.a
